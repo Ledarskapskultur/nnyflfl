@@ -18,7 +18,9 @@ st.set_page_config(
 # ---------- Datamodell för sidans innehåll ----------
 # Allt som visas på sidan hämtas från denna struktur.
 # PDF:en genereras från exakt samma data → hålls i synk.
-PAGE_TITLE = "Självskattning\n\nFunktionellt ledarskap"
+PAGE_TITLE = "Självskattning
+
+Funktionellt ledarskap"
 SECTIONS = [
     {
         "title": "Aktivt lyssnande",
@@ -74,8 +76,10 @@ def generate_pdf_from_sections(page_title: str, sections: list[dict]) -> bytes:
     # Sidhuvud
     pdf.setTitle("självskattning_funktionellt_ledarskap.pdf")
     pdf.setFont("Helvetica-Bold", 16)
-# Stöd för radbrytningar i sidans titel (\n)
-_title_lines = [l for l in page_title.split("\n")]
+# Stöd för radbrytningar i sidans titel (
+)
+_title_lines = [l for l in page_title.split("
+")]
 _current_y = top_y
 for _line in _title_lines:
     if _line.strip():
