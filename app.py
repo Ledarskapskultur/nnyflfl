@@ -1,98 +1,105 @@
-import textwrap
-from io import BytesIO
+"""
+from reportlab.lib.pagesizes import A4
 from datetime import datetime
 
-import streamlit as st
-from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import A4
 
-# =============================
-# Streamlit-app (ingen Flask)
-# =============================
-st.set_page_config(
-    page_title="Självskattning - Funktionellt ledarskap",
-    page_icon="📄",
-    layout="centered",
+app = Flask(__name__)
+
+
+INDEX_HTML = """
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Exempel: Ladda ner PDF</title>
+<style>
+body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 0; background: #f7f7f8; }
+.container { max-width: 800px; margin: 4rem auto; background: white; padding: 2rem; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.06); }
+h1 { margin-top: 0; }
+p { line-height: 1.6; }
+.btn { display: inline-block; padding: 0.75rem 1.2rem; border-radius: 10px; text-decoration: none; border: 0; cursor: pointer; font-weight: 600; background: #0d6efd; color: white; }
+.btn:hover { filter: brightness(0.95); }
+</style>
+</head>
+<body>
+<main class="container">
+<h1>Exempelsida</h1>
+<p>
+Lorem ipsum dolor sit amet, consectetur adipiscing elit. Praesent eget
+velit sed nisl auctor consequat. Suspendisse potenti. Nullam facilisis
+augue at sapien laoreet, et aliquam eros dictum. Vivamus congue, mi vitae
+faucibus mattis, massa nunc aliquet sem, non ultrices nibh neque a augue.
+</p>
+<a class="btn" href="/ladda-ner">Ladda ner PDF</a>
+</main>
+</body>
+</html>
+"""
+
+
+@app.route("/")
+def index():
+return render_template_string(INDEX_HTML)
+
+
+@app.route("/ladda-ner")
+def ladda_ner_pdf():
+# Generera en enkel PDF i minnet
+buffer = io.BytesIO()
+pdf = canvas.Canvas(buffer, pagesize=A4)
+pdf.setTitle("exempel.pdf")
+
+
+width, height = A4
+margin = 50
+
+
+pdf.setFont("Helvetica-Bold", 16)
+pdf.drawString(margin, height - margin, "Exempel-PDF")
+
+
+pdf.setFont("Helvetica", 10)
+datum = datetime.now().strftime("%Y-%m-%d %H:%M")
+pdf.drawString(margin, height - margin - 20, f"Genererad: {datum}")
+
+
+textobject = pdf.beginText()
+textobject.setTextOrigin(margin, height - margin - 60)
+textobject.setFont("Helvetica", 12)
+lorem = (
+"Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor "
+"incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud "
+"exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure "
+"dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. "
+"Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt "
+"mollit anim id est laborum."
 )
 
-st.title("Självskattning - Funktionellt ledarskap")
 
-st.header("Aktivt lyssnande")
-st.write(
-    """
-    Förmågan att vara närvarande i samtal och aktivt lyssna på medarbetare är en grundläggande del av ett funktionellt ledarskap.
-    Det handlar om att verkligen förstå vad den andra personen säger – både genom ord och känslor – och visa att du lyssnar.
-    Reflektera över hur ofta du skapar utrymme för andra att uttrycka sig utan att avbryta.
-    """
-)
+# Bryt texten till flera rader
+import textwrap
+for line in textwrap.wrap(lorem, width=90):
+textobject.textLine(line)
 
-st.header("Återkoppling")
-st.write(
-    """
-    Återkoppling är en central del i ledarskap som skapar utveckling, tydlighet och motivation.
-    Fundera på hur du ger återkoppling – både positiv och korrigerande – och om den landar på ett sätt som stärker förtroendet.
-    Ett funktionellt ledarskap bygger på kontinuerlig, konstruktiv återkoppling.
-    """
-)
 
-st.header("Målinriktning")
-st.write(
-    """
-    Att vara målinriktad handlar inte bara om att sätta upp mål, utan att skapa mening och riktning i vardagen.
-    Hur tydliga är era mål i teamet? Vet alla varför de gör det de gör? Reflektera över hur du som ledare skapar engagemang kring målen.
-    """
+pdf.drawText(textobject)
+pdf.showPage()
+pdf.save()
+
+
+buffer.seek(0)
+
+
+return send_file(
+buffer,
+as_attachment=True,
+download_name="exempel.pdf",
+mimetype="application/pdf",
 )
 
 
-def generate_pdf() -> bytes:
-    """Genererar en PDF av innehållet ovan och returnerar som bytes."""
-    buffer = BytesIO()
-    pdf = canvas.Canvas(buffer, pagesize=A4)
-    pdf.setTitle("självskattning_funktionellt_ledarskap.pdf")
 
-    width, height = A4
-    margin = 50
 
-    pdf.setFont("Helvetica-Bold", 16)
-    pdf.drawString(margin, height - margin, "Självskattning - Funktionellt ledarskap")
-
-    pdf.setFont("Helvetica", 10)
-    datum = datetime.now().strftime("%Y-%m-%d %H:%M")
-    pdf.drawString(margin, height - margin - 20, f"Genererad: {datum}")
-
-    # Skriv textblocken
-    textobject = pdf.beginText()
-    textobject.setTextOrigin(margin, height - margin - 60)
-    textobject.setFont("Helvetica", 12)
-
-    innehall = (
-        "Aktivt lyssnande:\n"
-        "Förmågan att vara närvarande i samtal och aktivt lyssna på medarbetare är en grundläggande del av ett funktionellt ledarskap.\n\n"
-        "Återkoppling:\n"
-        "Återkoppling är en central del i ledarskap som skapar utveckling, tydlighet och motivation.\n\n"
-        "Målinriktning:\n"
-        "Att vara målinriktad handlar inte bara om att sätta upp mål, utan att skapa mening och riktning i vardagen.\n"
-    )
-
-    import textwrap as tw
-    for line in tw.wrap(innehall, width=90):
-        textobject.textLine(line)
-
-    pdf.drawText(textobject)
-    pdf.showPage()
-    pdf.save()
-
-    buffer.seek(0)
-    return buffer.getvalue()
-
-# Generera PDF och visa nedladdningsknapp
-pdf_bytes = generate_pdf()
-
-st.download_button(
-    label="Ladda ner PDF",
-    data=pdf_bytes,
-    file_name="självskattning_funktionellt_ledarskap.pdf",
-    mime="application/pdf",
-)
-
-st.caption("Klicka på knappen ovan för att ladda ner en PDF av innehållet.")
+if __name__ == "__main__":
+app.run(debug=True)
