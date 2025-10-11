@@ -2,13 +2,11 @@ from io import BytesIO
 from datetime import datetime
 import os
 import textwrap
-import requests  # <— för att anropa Power Automate
+import requests
 
 import streamlit as st
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
-from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.lib.colors import HexColor, black, Color
 
 # =============================
@@ -32,19 +30,16 @@ st.markdown(
       .stMarkdown h2 {{ font-size: 19px; font-weight: 700; margin: 24px 0 8px 0; }}
       .stMarkdown p, .stMarkdown {{ font-size: 15px; line-height: 21px; }}
 
-      /* Kort/komponenter */
       .card {{ background:#fff; border-radius:14px; border:1px solid rgba(0,0,0,.10);
                box-shadow:0 6px 20px rgba(0,0,0,.08); }}
       .hero {{ text-align:center; padding:34px 28px; }}
       .hero h1 {{ font-size:34px; margin:0 0 8px 0; }}
       .hero p  {{ color:#374151; margin:0 0 18px 0; }}
 
-      /* Kontakt */
       .contact-card {{ padding:12px 14px; }}
       .contact-title {{ font-weight:700; font-size:19px; margin: 6px 0 10px 0; }}
       .stTextInput>div>div>input {{ background:#F8FAFC; }}
 
-      /* Resultatkort (bedömning) */
       .right-wrap {{ display:flex; align-items:center; justify-content:center; }}
       .res-card {{ max-width:360px; width:100%; padding:16px 18px; }}
       .role-label {{ font-size:13px; color:#111827; margin:10px 0 6px 0; display:block; font-weight:600; }}
@@ -54,6 +49,7 @@ st.markdown(
       .bar-orange {{ background:#F5A524; }}
       .bar-blue {{ background:#3B82F6; }}
       .maxline {{ font-size:13px; color:#374151; margin-top:12px; font-weight:600; }}
+
       .ok-badge {{ color:#065f46; background:#d1fae5; padding:2px 8px; border-radius:9999px; font-size:12px; }}
       .err-badge {{ color:#991b1b; background:#fee2e2; padding:2px 8px; border-radius:9999px; font-size:12px; }}
     </style>
@@ -99,7 +95,6 @@ Uppföljning är nyckeln. Genom att uppmärksamma framsteg, ge återkoppling och
     },
 ]
 
-# Poäng per roll (sätt här)
 preset_scores = {
     "lyssnande":   {"chef": 0, "overchef": 0, "medarbetare": 0},
     "aterkoppling":{"chef": 0, "overchef": 0, "medarbetare": 0},
@@ -109,21 +104,19 @@ preset_scores = {
 ROLES_REQUIRE_ID = {"Överordnad chef", "Medarbetare"}
 
 # =============================
-# Helper: anropa Power Automate
+# Power Automate (Flow) webhook
 # =============================
-FLOW_URL = os.getenv("https://default1ad3791223f4412ea6272223201343.20.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/bff5923897b04a39bc6ba69ea4afde69/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=B1rjO0FhY0ZxXO8VJvWPmcLAv-LMCgICG6tDguPmhwQ", "https://default1ad3791223f4412ea6272223201343.20.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/bff5923897b04a39bc6ba69ea4afde69/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=B1rjO0FhY0ZxXO8VJvWPmcLAv-LMCgICG6tDguPmhwQ").strip()
+# Din URL är default; kan överskridas med env-var FLOW_URL vid behov.
+FLOW_URL_DEFAULT = "https://default1ad3791223f4412ea6272223201343.20.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/bff5923897b04a39bc6ba69ea4afde69/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=B1rjO0FhY0ZxXO8VJvWPmcLAv-LMCgICG6tDguPmhwQ"
+FLOW_URL = os.getenv("FLOW_URL", FLOW_URL_DEFAULT).strip()
 
 def send_to_power_automate(payload: dict) -> tuple[bool, str | None, str | None]:
-    """
-    Skickar JSON till Power Automate-flödet (HTTP-begäran tas emot).
-    Returnerar (ok, unikt_id, felmeddelande).
-    Förväntar att flödet returnerar JSON som t.ex. {"uniktId":"ABC123"} eller {"id":"ABC123"}.
-    """
+    """POSTar till Power Automate. Returnerar (ok, unikt_id, felmeddelande)."""
     if not FLOW_URL:
-        return False, None, "FLOW_URL saknas (sätt miljövariabeln)."
+        return False, None, "FLOW_URL saknas."
     try:
-        resp = requests.post(FLOW_URL, json=payload, timeout=15)
-        if resp.status_code >= 200 and resp.status_code < 300:
+        resp = requests.post(FLOW_URL, json=payload, timeout=20)
+        if 200 <= resp.status_code < 300:
             try:
                 data = resp.json() if resp.content else {}
             except Exception:
@@ -135,14 +128,13 @@ def send_to_power_automate(payload: dict) -> tuple[bool, str | None, str | None]
                 or data.get("uniqueId")
                 or data.get("UniqueId")
             )
-            return True, unikt_id, None
-        else:
-            return False, None, f"HTTP {resp.status_code}: {resp.text[:300]}"
+            return True, (str(unikt_id) if unikt_id is not None else None), None
+        return False, None, f"HTTP {resp.status_code}: {resp.text[:300]}"
     except Exception as e:
         return False, None, str(e)
 
 # =============================
-# LANDNINGSSIDA
+# Landningssida
 # =============================
 def render_landing():
     st.markdown(
@@ -181,7 +173,6 @@ def render_landing():
             st.warning("Fyll i minst Namn och E-post för att fortsätta.")
             return
 
-        # Spara grunddata i session
         st.session_state["kontakt"] = {
             "Namn": namn.strip(),
             "Företag": foretag.strip(),
@@ -192,7 +183,7 @@ def render_landing():
         }
 
         if funktion == "Chef":
-            # Skicka till Power Automate → skriv till SharePoint + få tillbaka Unikt id
+            # Anropa Power Automate – skapar SharePoint-post + genererar Unikt id
             payload = {
                 "namn": namn.strip(),
                 "foretag": foretag.strip(),
@@ -204,20 +195,18 @@ def render_landing():
             ok, unikt_id, err = send_to_power_automate(payload)
             if ok:
                 if unikt_id:
-                    st.session_state["kontakt"]["Unikt id"] = str(unikt_id)
+                    st.session_state["kontakt"]["Unikt id"] = unikt_id
                     st.success(f"Post skapad i SharePoint. <span class='ok-badge'>Unikt id: {unikt_id}</span>", icon="✅")
                 else:
                     st.info("Post skapad i SharePoint, men flödet returnerade inget Unikt id.", icon="ℹ️")
                 st.session_state["page"] = "assessment"
             else:
                 st.error(f"Kunde inte skicka till Power Automate: {err}", icon="🚫")
-                # Låt användaren stanna kvar på landningssidan vid fel
         else:
-            # Roller som kräver att ange Unikt id manuellt
-            st.session_state["page"] = "id_page"
+            st.session_state["page"] = "id_page"  # Överordnad/Medarbetare → ange unikt id
 
 # =============================
-# NY SIDA: ANGE UNIKT ID (Överordnad/Medarbetare)
+# Sida: Ange Unikt id (Överordnad/Medarbetare)
 # =============================
 def render_id_page():
     st.markdown("## Ange unikt id")
@@ -245,12 +234,12 @@ def render_id_page():
         st.session_state["page"] = "landing"
 
 # =============================
-# BEDÖMNINGS-SIDA
+# Bedömningssida
 # =============================
 def render_assessment():
     st.markdown(f"# {PAGE_TITLE}")
 
-    # Kontakt (redigerbar)
+    # Kontaktuppgifter
     st.markdown("<div class='contact-title'>Kontaktuppgifter</div>", unsafe_allow_html=True)
     with st.container():
         st.markdown("<div class='card contact-card'>", unsafe_allow_html=True)
@@ -284,7 +273,7 @@ def render_assessment():
 
     kontakt = st.session_state["kontakt"]
 
-    # Sektioner 68/32 + resultatkort
+    # 68/32 + resultatkort
     for block in SECTIONS:
         left, right = st.columns([0.68, 0.32])
         with left:
@@ -314,7 +303,7 @@ def render_assessment():
     st.divider()
     st.caption("Ladda ner en PDF som speglar allt innehåll – kontakt, texter och resultat.")
 
-    # ----- PDF (matchar UI) -----
+    # PDF
     def generate_pdf(title: str, sections, results_map, kontaktinfo: dict) -> bytes:
         buf = BytesIO()
         pdf = canvas.Canvas(buf, pagesize=A4)
