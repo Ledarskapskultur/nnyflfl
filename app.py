@@ -27,13 +27,13 @@ st.markdown(
       .stApp {{ background-color: {eggshell_hex}; }}
       .block-container {{ padding-top: 2rem; padding-bottom: 3rem; }}
       /* Typografi – matcha PDF (Helvetica) */
-      html, body, [class*="css"] { font-family: Helvetica, Arial, sans-serif; }
+      html, body, [class*="css"] {{ font-family: Helvetica, Arial, sans-serif; }}
       /* H1 = 22pt ≈ 29px */
-      .stMarkdown h1 { font-size: 29px; font-weight: 700; margin: 0 0 6px 0; }
+      .stMarkdown h1 {{ font-size: 29px; font-weight: 700; margin: 0 0 6px 0; }}
       /* H2 = 14pt ≈ 18.7px */
-      .stMarkdown h2 { font-size: 19px; font-weight: 700; margin: 24px 0 8px 0; }
+      .stMarkdown h2 {{ font-size: 19px; font-weight: 700; margin: 24px 0 8px 0; }}
       /* Brödtext = 11pt ≈ 14.7px, radavstånd ≈ 16pt → ~21px */
-      .stMarkdown p, .stMarkdown { font-size: 15px; line-height: 21px; }
+      .stMarkdown p, .stMarkdown {{ font-size: 15px; line-height: 21px; }}
     </style>
     """,
     unsafe_allow_html=True,
