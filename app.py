@@ -100,6 +100,8 @@ preset_scores = {
     "malinriktning":{"chef": 0, "overchef": 0, "medarbetare": 0},
 }
 
+ROLES_REQUIRE_ID = {"Överordnad chef", "Medarbetare"}
+
 # =============================
 # LANDNINGSSIDA
 # =============================
@@ -116,7 +118,7 @@ def render_landing():
 
     default = st.session_state.get(
         "kontakt",
-        {"Namn": "", "Företag": "", "Telefon": "", "E-post": "", "Funktion": "Chef"},
+        {"Namn": "", "Företag": "", "Telefon": "", "E-post": "", "Funktion": "Chef", "Unikt id": ""},
     )
 
     with st.form("landing_form"):
@@ -133,20 +135,53 @@ def render_landing():
             foretag = st.text_input("Företag", value=default["Företag"])
             epost   = st.text_input("E-post", value=default["E-post"])
 
-        start = st.form_submit_button("Starta självskattning", type="primary")
+        start = st.form_submit_button("Starta", type="primary")
 
     if start:
         if not namn.strip() or not epost.strip():
             st.warning("Fyll i minst Namn och E-post för att fortsätta.")
             return
+
         st.session_state["kontakt"] = {
             "Namn": namn.strip(),
             "Företag": foretag.strip(),
             "Telefon": telefon.strip(),
             "E-post": epost.strip(),
             "Funktion": funktion,
+            "Unikt id": default.get("Unikt id",""),
         }
+
+        # Styr routing: Överordnad/Medarbetare -> sida för Unikt id, annars direkt bedömning
+        st.session_state["page"] = "id_page" if funktion in ROLES_REQUIRE_ID else "assessment"
+
+# =============================
+# NY SIDA: ANGE UNIKT ID
+# Gäller bara för Överordnad chef och Medarbetare
+# =============================
+def render_id_page():
+    st.markdown("## Ange unikt id")
+    st.info("Detta steg gäller för Överordnad chef och Medarbetare.")
+
+    base = st.session_state.get("kontakt", {})
+    with st.form("id_form"):
+        c1, c2 = st.columns([0.6, 0.4])
+        with c1:
+            unikt_id = st.text_input("Unikt id", value=base.get("Unikt id",""))
+        with c2:
+            st.write("")  # luft
+            st.write(f"**Funktion:** {base.get('Funktion','')}")
+        ok = st.form_submit_button("Fortsätt till självskattning", type="primary")
+
+    if ok:
+        if not unikt_id.strip():
+            st.warning("Ange ett unikt id för att fortsätta.")
+            return
+        # spara id och vidare
+        st.session_state["kontakt"]["Unikt id"] = unikt_id.strip()
         st.session_state["page"] = "assessment"
+
+    if st.button("◀ Tillbaka"):
+        st.session_state["page"] = "landing"
 
 # =============================
 # BEDÖMNINGS-SIDA
@@ -154,12 +189,12 @@ def render_landing():
 def render_assessment():
     st.markdown(f"# {PAGE_TITLE}")
 
-    # Kontakt (förifyll från landing, redigerbar)
+    # Kontakt (förifyll från tidigare steg, redigerbar)
     st.markdown("<div class='contact-title'>Kontaktuppgifter</div>", unsafe_allow_html=True)
     with st.container():
         st.markdown("<div class='card contact-card'>", unsafe_allow_html=True)
 
-        base = st.session_state.get("kontakt", {"Namn":"","Företag":"","Telefon":"","E-post":"","Funktion":"Chef"})
+        base = st.session_state.get("kontakt", {"Namn":"","Företag":"","Telefon":"","E-post":"","Funktion":"Chef","Unikt id":""})
         c1, c2, c3 = st.columns([0.4, 0.3, 0.3])
         with c1:
             kontakt_namn  = st.text_input("Namn", value=base.get("Namn",""))
@@ -173,6 +208,9 @@ def render_assessment():
                 ["Chef", "Överordnad chef", "Medarbetare"],
                 index=["Chef", "Överordnad chef", "Medarbetare"].index(base.get("Funktion","Chef")),
             )
+            # Visa Unikt id endast för rollerna som kräver det
+            visa_id = kontakt_funktion in ROLES_REQUIRE_ID
+            kontakt_unikt_id = st.text_input("Unikt id", value=base.get("Unikt id",""), disabled=not visa_id)
 
         st.session_state["kontakt"] = {
             "Namn": kontakt_namn.strip(),
@@ -180,12 +218,18 @@ def render_assessment():
             "Telefon": kontakt_tel.strip(),
             "E-post": kontakt_epost.strip(),
             "Funktion": kontakt_funktion,
+            "Unikt id": kontakt_unikt_id.strip() if visa_id else "",
         }
         st.markdown("</div>", unsafe_allow_html=True)
 
     kontakt = st.session_state["kontakt"]
 
-    # Sektioner 68/32 + resultatkort i format: roll: xx poäng + progressbar + Max
+    # Validering i detta steg: om roll kräver unikt id – måste vara ifyllt
+    requires_id_and_missing = (kontakt["Funktion"] in ROLES_REQUIRE_ID) and (not kontakt["Unikt id"])
+    if requires_id_and_missing:
+        st.warning("Unikt id krävs för vald funktion.")
+
+    # Sektioner 68/32 + resultatkort i önskat format
     for block in SECTIONS:
         left, right = st.columns([0.68, 0.32])
         with left:
@@ -233,7 +277,7 @@ def render_assessment():
         pdf.setFont("Helvetica", 9); pdf.drawRightString(width-margin_x, top_y+4, datetime.now().strftime("Genererad: %Y-%m-%d %H:%M"))
         y = top_y - 28
 
-        # Kontakt
+        # Kontakt i PDF (inkl. Unikt id för de roller som kräver det)
         pdf.setFont("Helvetica-Bold", 10); pdf.drawString(margin_x, y, "Kontaktuppgifter"); y -= 14
         pdf.setFont("Helvetica", 10)
         row = [
@@ -243,6 +287,8 @@ def render_assessment():
             f"E-post: {kontaktinfo.get('E-post','')}",
             f"Funktion: {kontaktinfo.get('Funktion','')}",
         ]
+        if kontaktinfo.get("Funktion") in ROLES_REQUIRE_ID:
+            row.append(f"Unikt id: {kontaktinfo.get('Unikt id','')}")
         line = "   |   ".join(row)
         if len(line) > 110:
             mid = len(row)//2
@@ -294,14 +340,15 @@ def render_assessment():
         pdf.showPage(); pdf.save(); buf.seek(0)
         return buf.getvalue()
 
+    pdf_disabled = requires_id_and_missing
     pdf_bytes = generate_pdf(PAGE_TITLE, SECTIONS, preset_scores, kontakt)
-
     st.download_button(
         "Ladda ner PDF",
         data=pdf_bytes,
         file_name="självskattning_funktionellt_ledarskap.pdf",
         mime="application/pdf",
         type="primary",
+        disabled=pdf_disabled,
     )
 
     if st.button("◀ Tillbaka till startsidan"):
@@ -313,7 +360,10 @@ def render_assessment():
 if "page" not in st.session_state:
     st.session_state["page"] = "landing"
 
-if st.session_state["page"] == "landing":
+page = st.session_state["page"]
+if page == "landing":
     render_landing()
+elif page == "id_page":
+    render_id_page()
 else:
     render_assessment()
