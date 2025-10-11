@@ -18,7 +18,7 @@ st.set_page_config(
 # ---------- Datamodell för sidans innehåll ----------
 # Allt som visas på sidan hämtas från denna struktur.
 # PDF:en genereras från exakt samma data → hålls i synk.
-PAGE_TITLE = "Självskattning <br> Funktionellt ledarskap"
+PAGE_TITLE = "Självskattning /n/ Funktionellt ledarskap"
 SECTIONS = [
     {
         "title": "Aktivt lyssnande",
