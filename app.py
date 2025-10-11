@@ -8,7 +8,7 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.colors import HexColor, black, Color
 
 # =============================
-# Grundinställningar (Streamlit)
+# Grundinställningar
 # =============================
 st.set_page_config(
     page_title="Självskattning – Funktionellt ledarskap",
@@ -18,7 +18,6 @@ st.set_page_config(
 
 EGGSHELL = "#FAF7F0"
 
-# Global CSS
 st.markdown(
     f"""
     <style>
@@ -94,16 +93,12 @@ Uppföljning är nyckeln. Genom att uppmärksamma framsteg, ge återkoppling och
     },
 ]
 
-# Poäng per roll (visas – ingen inmatning)
+# Poäng per roll (ingen inmatning i UI – sätt här)
 preset_scores = {
     "lyssnande":   {"chef": 0, "overchef": 0, "medarbetare": 0},
     "aterkoppling":{"chef": 0, "overchef": 0, "medarbetare": 0},
     "malinriktning":{"chef": 0, "overchef": 0, "medarbetare": 0},
 }
-
-ROLE_LABELS = {"chef": "Chef", "overchef": "Överordnad chef", "medarbetare": "Medarbetare"}
-ROLE_ORDER  = ["chef", "overchef", "medarbetare"]
-ROLES_REQUIRE_CODE = {"Överordnad chef", "Medarbetare"}  # roller som kräver Kod
 
 # =============================
 # LANDNINGSSIDA
@@ -119,48 +114,37 @@ def render_landing():
         unsafe_allow_html=True,
     )
 
-    # Förifyll om användaren redan varit här
     default = st.session_state.get(
         "kontakt",
-        {"Namn": "", "Företag": "", "Telefon": "", "E-post": "", "Funktion": "Chef", "Kod": ""},
+        {"Namn": "", "Företag": "", "Telefon": "", "E-post": "", "Funktion": "Chef"},
     )
 
     with st.form("landing_form"):
-        # 3 kolumner så att Kod hamnar till höger om Funktion
-        c1, c2, c3 = st.columns([0.34, 0.33, 0.33])
+        c1, c2 = st.columns([0.5, 0.5])
         with c1:
             namn     = st.text_input("Namn", value=default["Namn"])
             telefon  = st.text_input("Telefon", value=default["Telefon"])
-        with c2:
-            foretag  = st.text_input("Företag", value=default["Företag"])
-            epost    = st.text_input("E-post", value=default["E-post"])
-        with c3:
             funktion = st.selectbox(
-                "Funktion", ["Chef", "Överordnad chef", "Medarbetare"],
-                index=["Chef", "Överordnad chef", "Medarbetare"].index(default["Funktion"])
+                "Funktion",
+                ["Chef", "Överordnad chef", "Medarbetare"],
+                index=["Chef", "Överordnad chef", "Medarbetare"].index(default["Funktion"]),
             )
-            # Visa kodfält om rollen kräver kod, annars visa ett "disabled" fält som är grått
-            visa_kod = funktion in ROLES_REQUIRE_CODE
-            kod = st.text_input("Kod (obligatorisk)", value=default["Kod"], disabled=not visa_kod)
+        with c2:
+            foretag = st.text_input("Företag", value=default["Företag"])
+            epost   = st.text_input("E-post", value=default["E-post"])
 
         start = st.form_submit_button("Starta självskattning", type="primary")
 
     if start:
-        # Validering
         if not namn.strip() or not epost.strip():
             st.warning("Fyll i minst Namn och E-post för att fortsätta.")
             return
-        if funktion in ROLES_REQUIRE_CODE and not kod.strip():
-            st.warning("Kod är obligatoriskt för vald funktion.")
-            return
-
         st.session_state["kontakt"] = {
             "Namn": namn.strip(),
             "Företag": foretag.strip(),
             "Telefon": telefon.strip(),
             "E-post": epost.strip(),
             "Funktion": funktion,
-            "Kod": kod.strip() if funktion in ROLES_REQUIRE_CODE else "",
         }
         st.session_state["page"] = "assessment"
 
@@ -170,14 +154,12 @@ def render_landing():
 def render_assessment():
     st.markdown(f"# {PAGE_TITLE}")
 
-    # Kontaktuppgifter (förifyll från landing)
+    # Kontakt (förifyll från landing, redigerbar)
     st.markdown("<div class='contact-title'>Kontaktuppgifter</div>", unsafe_allow_html=True)
     with st.container():
         st.markdown("<div class='card contact-card'>", unsafe_allow_html=True)
 
-        base = st.session_state.get("kontakt", {"Namn":"","Företag":"","Telefon":"","E-post":"","Funktion":"Chef","Kod":""})
-
-        # 3 kolumner: Namn/E-post | Företag/Telefon | Funktion/Kod
+        base = st.session_state.get("kontakt", {"Namn":"","Företag":"","Telefon":"","E-post":"","Funktion":"Chef"})
         c1, c2, c3 = st.columns([0.4, 0.3, 0.3])
         with c1:
             kontakt_namn  = st.text_input("Namn", value=base.get("Namn",""))
@@ -187,26 +169,23 @@ def render_assessment():
             kontakt_tel     = st.text_input("Telefon", value=base.get("Telefon",""))
         with c3:
             kontakt_funktion = st.selectbox(
-                "Funktion", ["Chef", "Överordnad chef", "Medarbetare"],
-                index=["Chef", "Överordnad chef", "Medarbetare"].index(base.get("Funktion","Chef"))
+                "Funktion",
+                ["Chef", "Överordnad chef", "Medarbetare"],
+                index=["Chef", "Överordnad chef", "Medarbetare"].index(base.get("Funktion","Chef")),
             )
-            visa_kod = kontakt_funktion in ROLES_REQUIRE_CODE
-            kontakt_kod = st.text_input("Kod (obligatorisk)", value=base.get("Kod",""), disabled=not visa_kod)
 
-        # spara ev. ändringar
         st.session_state["kontakt"] = {
             "Namn": kontakt_namn.strip(),
             "Företag": kontakt_foretag.strip(),
             "Telefon": kontakt_tel.strip(),
             "E-post": kontakt_epost.strip(),
             "Funktion": kontakt_funktion,
-            "Kod": kontakt_kod.strip() if visa_kod else "",
         }
         st.markdown("</div>", unsafe_allow_html=True)
 
     kontakt = st.session_state["kontakt"]
 
-    # Sektioner 68/32 + resultatkort i önskat format
+    # Sektioner 68/32 + resultatkort i format: roll: xx poäng + progressbar + Max
     for block in SECTIONS:
         left, right = st.columns([0.68, 0.32])
         with left:
@@ -215,36 +194,25 @@ def render_assessment():
                 st.write(para)
         with right:
             scores = preset_scores.get(block["key"], {"chef":0,"overchef":0,"medarbetare":0})
-
             st.markdown("<div class='right-wrap'>", unsafe_allow_html=True)
             html = [f"<div class='card res-card'>"]
 
-            # Chef
-            val = int(scores.get("chef", 0)); pct = 0 if block["max"]==0 else val/block["max"]*100
-            html += [f"<span class='role-label'>Chef: {val} poäng</span>",
-                     f"<div class='barbg'><span class='barfill bar-green' style='width:{pct:.0f}%'></span></div>"]
+            def bar(label, value, maxv, color_cls):
+                pct = 0 if maxv == 0 else value / maxv * 100
+                return [
+                    f"<span class='role-label'>{label}: {value} poäng</span>",
+                    f"<div class='barbg'><span class='barfill {color_cls}' style='width:{pct:.0f}%'></span></div>",
+                ]
 
-            # Överordnad chef
-            val = int(scores.get("overchef", 0)); pct = 0 if block["max"]==0 else val/block["max"]*100
-            html += [f"<span class='role-label'>Överordnad chef: {val} poäng</span>",
-                     f"<div class='barbg'><span class='barfill bar-orange' style='width:{pct:.0f}%'></span></div>"]
-
-            # Medarbetare
-            val = int(scores.get("medarbetare", 0)); pct = 0 if block["max"]==0 else val/block["max"]*100
-            html += [f"<span class='role-label'>Medarbetare: {val} poäng</span>",
-                     f"<div class='barbg'><span class='barfill bar-blue' style='width:{pct:.0f}%'></span></div>"]
-
-            # Max
+            html += bar("Chef",            int(scores.get("chef", 0)),        block["max"], "bar-green")
+            html += bar("Överordnad chef", int(scores.get("overchef", 0)),    block["max"], "bar-orange")
+            html += bar("Medarbetare",     int(scores.get("medarbetare", 0)), block["max"], "bar-blue")
             html += [f"<div class='maxline'>Max: {block['max']} poäng</div>", "</div>"]
+
             st.markdown("\n".join(html), unsafe_allow_html=True)
             st.markdown("</div>", unsafe_allow_html=True)
 
     st.divider()
-
-    # Disable PDF-knapp om kod krävs men saknas
-    disable_pdf = (kontakt["Funktion"] in ROLES_REQUIRE_CODE) and (not kontakt["Kod"])
-    if disable_pdf:
-        st.warning("Kod är obligatoriskt för vald funktion.")
     st.caption("Ladda ner en PDF som speglar allt innehåll – kontakt, texter och resultat.")
 
     # ----- PDF (matchar UI-format) -----
@@ -275,8 +243,6 @@ def render_assessment():
             f"E-post: {kontaktinfo.get('E-post','')}",
             f"Funktion: {kontaktinfo.get('Funktion','')}",
         ]
-        if kontaktinfo.get("Funktion") in ROLES_REQUIRE_CODE:
-            row.append(f"Kod: {kontaktinfo.get('Kod','')}")
         line = "   |   ".join(row)
         if len(line) > 110:
             mid = len(row)//2
@@ -308,35 +274,20 @@ def render_assessment():
                 for ln in textwrap.wrap(p, width=95):
                     ensure_space(line_h); pdf.drawString(margin_x, y, ln); y -= line_h
 
-            # Chef
-            chef = int(results_map.get(block["key"], {}).get("chef", 0))
-            ensure_space(26)
-            pdf.setFont("Helvetica-Bold", 10); pdf.drawString(margin_x, y, f"Chef: {chef} poäng"); y -= 12
-            bar_w, bar_h = width-2*margin_x, 8
-            pdf.setFillColor(bar_bg); pdf.rect(margin_x, y, bar_w, bar_h, fill=1, stroke=0)
-            fill_w = 0 if block["max"]==0 else bar_w*(chef/block["max"])
-            pdf.setFillColor(bar_green); pdf.rect(margin_x, y, fill_w, bar_h, fill=1, stroke=0)
-            pdf.setFillColor(black); y -= 14
+            def draw_bar(label, value, maxv, color):
+                nonlocal y
+                ensure_space(26)
+                pdf.setFont("Helvetica-Bold", 10); pdf.drawString(margin_x, y, f"{label}: {value} poäng"); y -= 12
+                bar_w, bar_h = width-2*margin_x, 8
+                pdf.setFillColor(bar_bg); pdf.rect(margin_x, y, bar_w, bar_h, fill=1, stroke=0)
+                fill_w = 0 if maxv==0 else bar_w*(value/maxv)
+                pdf.setFillColor(color); pdf.rect(margin_x, y, fill_w, bar_h, fill=1, stroke=0)
+                pdf.setFillColor(black); y -= 14
 
-            # Överordnad chef
-            oc = int(results_map.get(block["key"], {}).get("overchef", 0))
-            ensure_space(26)
-            pdf.setFont("Helvetica-Bold", 10); pdf.drawString(margin_x, y, f"Överordnad chef: {oc} poäng"); y -= 12
-            pdf.setFillColor(bar_bg); pdf.rect(margin_x, y, bar_w, bar_h, fill=1, stroke=0)
-            fill_w = 0 if block["max"]==0 else bar_w*(oc/block["max"])
-            pdf.setFillColor(bar_orange); pdf.rect(margin_x, y, fill_w, bar_h, fill=1, stroke=0)
-            pdf.setFillColor(black); y -= 14
+            draw_bar("Chef",            int(results_map.get(block["key"],{}).get("chef",0)),        block["max"], bar_green)
+            draw_bar("Överordnad chef", int(results_map.get(block["key"],{}).get("overchef",0)),    block["max"], bar_orange)
+            draw_bar("Medarbetare",     int(results_map.get(block["key"],{}).get("medarbetare",0)), block["max"], bar_blue)
 
-            # Medarbetare
-            med = int(results_map.get(block["key"], {}).get("medarbetare", 0))
-            ensure_space(26)
-            pdf.setFont("Helvetica-Bold", 10); pdf.drawString(margin_x, y, f"Medarbetare: {med} poäng"); y -= 12
-            pdf.setFillColor(bar_bg); pdf.rect(margin_x, y, bar_w, bar_h, fill=1, stroke=0)
-            fill_w = 0 if block["max"]==0 else bar_w*(med/block["max"])
-            pdf.setFillColor(bar_blue); pdf.rect(margin_x, y, fill_w, bar_h, fill=1, stroke=0)
-            pdf.setFillColor(black); y -= 16
-
-            # Max
             pdf.setFont("Helvetica-Bold", 10); pdf.drawString(margin_x, y, f"Max: {block['max']} poäng")
             y -= 18
 
@@ -351,14 +302,13 @@ def render_assessment():
         file_name="självskattning_funktionellt_ledarskap.pdf",
         mime="application/pdf",
         type="primary",
-        disabled=disable_pdf,
     )
 
     if st.button("◀ Tillbaka till startsidan"):
         st.session_state["page"] = "landing"
 
 # =============================
-# Enkel router
+# Router
 # =============================
 if "page" not in st.session_state:
     st.session_state["page"] = "landing"
