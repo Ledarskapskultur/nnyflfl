@@ -27,12 +27,18 @@ st.markdown(
       .stMarkdown h1 {{ font-size: 29px; font-weight: 700; margin: 0 0 6px 0; }}
       .stMarkdown h2 {{ font-size: 19px; font-weight: 700; margin: 24px 0 8px 0; }}
       .stMarkdown p, .stMarkdown {{ font-size: 15px; line-height: 21px; }}
-      .card {{ background: #fff; border-radius: 12px; box-shadow: 0 4px 16px rgba(0,0,0,.08); padding: 14px 16px; border: 1px solid rgba(0,0,0,.12); }}
+      /* Resultat-kort (likt bilden) */
+      .card {{ background: #fff; border-radius: 12px; box-shadow: 0 4px 16px rgba(0,0,0,.08); padding: 14px 16px; border: 1px solid rgba(0,0,0,.12); max-width: 280px; margin: 0 auto; }}
       .card h3 {{ margin: 0 0 8px 0; font-size: 16px; }}
-      .score {{ font-size: 40px; font-weight: 800; margin: 4px 0 8px 0; }}
+      .score {{ font-size: 40px; font-weight: 800; margin: 2px 0 8px 0; text-align:center; }}
       .summa {{ font-size: 13px; color: #333; margin-top: 8px; }}
       .barbg {{ width: 100%; height: 10px; background: #E9ECEF; border-radius: 6px; overflow: hidden; }}
-      .barfill {{ height: 10px; background: #F5A524; display: block; }}
+      .barfill {{ height: 10px; display: block; }}
+      .bar-green {{ background: #4CAF50; }}
+      .bar-orange {{ background: #F5A524; }}
+      .bar-blue {{ background: #3B82F6; }}
+      .role-label {{ font-size: 12px; color: #344054; margin: 6px 0 4px 0; display:block; }}
+      .right-wrap {{ display:flex; align-items:center; justify-content:center; }}
     </style>
     """,
     unsafe_allow_html=True,
@@ -53,7 +59,7 @@ SECTIONS = [
             "Genom att agera på det du hör – bekräfta, följa upp och omsätta idéer i handling – stärker du både "
             "engagemang, förtroende och delaktighet."
         ),
-        "max": 56,
+        "max": 49,  # 7 frågor
     },
     {
         "key": "aterkoppling",
@@ -68,7 +74,7 @@ SECTIONS = [
             "I svåra situationer blir återkopplingen extra viktig. Att vara lugn, konsekvent och tydlig när det blåser "
             "visar ledarskap på riktigt."
         ),
-        "max": 56,
+        "max": 56,  # 8 frågor
     },
     {
         "key": "malinriktning",
@@ -83,18 +89,29 @@ SECTIONS = [
             "Uppföljning är nyckeln. Genom att uppmärksamma framsteg, ge återkoppling och fira resultat förstärker du "
             "både prestation och motivation."
         ),
-        "max": 35,
+        "max": 35,  # 5 frågor
     },
 ]
 
-# Om du vill sätta resultat programatiskt, gör det här.
-# ex: preset_scores = {"lyssnande": 8, "aterkoppling": 8, "malinriktning": 5}
-preset_scores = {}
+# Resultat per roll och sektion (ingen inmatning – sätt värden här)
+# Exempelvärden: ändra fritt eller koppla till data senare
+preset_scores = {
+    "lyssnande": {"chef": 0, "overchef": 0, "medarbetare": 0},
+    "aterkoppling": {"chef": 0, "overchef": 0, "medarbetare": 0},
+    "malinriktning": {"chef": 0, "overchef": 0, "medarbetare": 0},
+}
+
+ROLE_LABELS = {
+    "chef": "Chef",
+    "overchef": "Överordnad chef",
+    "medarbetare": "Medarbetare",
+}
+ROLE_ORDER = ["chef", "overchef", "medarbetare"]
 
 # ---------- Rendera titel ----------
 st.markdown(f"# {PAGE_TITLE}")
 
-# ---------- Sektioner 68%/32% + resultatkort (UTAN nummerfält) ----------
+# ---------- Sektioner 68%/32% + centrerat resultatkort med 3 progressbars ----------
 results = {}
 for block in SECTIONS:
     left, right = st.columns([0.68, 0.32])
@@ -103,32 +120,30 @@ for block in SECTIONS:
         for para in block["text"].split("\n\n"):
             st.write(para)
     with right:
-        score = int(preset_scores.get(block["key"], 0))  # visa bara, ingen inmatning
-        results[block["key"]] = score
-        st.markdown(
-            f"""
-            <div class=\"card\">
-              <h3>{block['title']}</h3>
-              <div class=\"score\">{score}</div>
-            """,
-            unsafe_allow_html=True,
-        )
-        # Grön progressbar (matchar bilden)
-        st.progress(score / block["max"] if block["max"] else 0.0)
-        # Orange stapel + summa
-        st.markdown(
-            f"""
-              <div class=\"barbg\"><span class=\"barfill\" style=\"width:{(score/block['max']*100) if block['max'] else 0:.0f}%\"></span></div>
-              <div class=\"summa\">Summa {score}/{block['max']}</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+        scores = preset_scores.get(block["key"], {r: 0 for r in ROLE_ORDER})
+        results[block["key"]] = scores
+
+        st.markdown("<div class='right-wrap'>", unsafe_allow_html=True)
+        # Resultat-kort
+        card_html = [
+            f"<div class='card'><h3>{block['title']}</h3>",
+        ]
+        # Tre progressbars
+        for role in ROLE_ORDER:
+            val = int(scores.get(role, 0))
+            pct = 0 if block["max"] == 0 else (val / block["max"]) * 100
+            color_class = "bar-green" if role == "chef" else ("bar-blue" if role == "medarbetare" else "bar-orange")
+            card_html.append(f"<span class='role-label'>{ROLE_LABELS[role]}</span>")
+            card_html.append(f"<div class='barbg'><span class='barfill {color_class}' style='width:{pct:.0f}%'></span></div>")
+            card_html.append(f"<div class='summa'>Summa {val}/{block['max']}</div>")
+        card_html.append("</div>")
+        st.markdown("\n".join(card_html), unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
 
 st.divider()
 st.caption("Klicka på knappen nedan för att ladda ner en PDF som speglar allt innehåll – texter och resultat.")
 
-# ---------- PDF-generering från samma datamodell ----------
+# ---------- PDF-generering från samma datamodell (inkl. 3 bars/sektion) ----------
 
 def generate_pdf(title: str, sections, results_map):
     buf = BytesIO()
@@ -170,7 +185,9 @@ def generate_pdf(title: str, sections, results_map):
             y = height - 60
 
     bar_bg = Color(0.91, 0.92, 0.94)
-    bar_fg = Color(0.96, 0.65, 0.15)
+    bar_green = Color(0.30, 0.69, 0.31)    # #4CAF50
+    bar_orange = Color(0.96, 0.65, 0.15)   # #F5A524
+    bar_blue = Color(0.23, 0.51, 0.96)     # #3B82F6
 
     for block in sections:
         ensure_space(30)
@@ -188,28 +205,29 @@ def generate_pdf(title: str, sections, results_map):
                 pdf.drawString(margin_x, y, line)
             y -= line_h
 
-        score_val = int(results_map.get(block["key"], 0))
-        max_val = int(block.get("max", 0))
-        ensure_space(36)
-        pdf.setFont("Helvetica-Bold", 10)
-        pdf.drawString(margin_x, y, f"Summa {score_val}/{max_val}")
-        y -= 12
-        bar_w = width - margin_x * 2
-        bar_h = 8
-        pdf.setFillColor(bar_bg)
-        pdf.rect(margin_x, y, bar_w, bar_h, fill=1, stroke=0)
-        fill_w = 0 if max_val == 0 else bar_w * (score_val / max_val)
-        pdf.setFillColor(bar_fg)
-        pdf.rect(margin_x, y, fill_w, bar_h, fill=1, stroke=0)
-        pdf.setFillColor(black)
-        y -= 18
+        # Tre rollstaplar
+        role_seq = [("chef", bar_green), ("overchef", bar_orange), ("medarbetare", bar_blue)]
+        for role, color in role_seq:
+            val = int(results_map.get(block["key"], {}).get(role, 0))
+            max_val = int(block.get("max", 0))
+            ensure_space(26)
+            pdf.setFont("Helvetica", 10)
+            pdf.drawString(margin_x, y, f"{ROLE_LABELS[role]} – Summa {val}/{max_val}")
+            y -= 12
+            bar_w = width - margin_x * 2
+            bar_h = 8
+            pdf.setFillColor(bar_bg); pdf.rect(margin_x, y, bar_w, bar_h, fill=1, stroke=0)
+            fill_w = 0 if max_val == 0 else bar_w * (val / max_val)
+            pdf.setFillColor(color); pdf.rect(margin_x, y, fill_w, bar_h, fill=1, stroke=0)
+            pdf.setFillColor(black)
+            y -= 14
 
     pdf.showPage()
     pdf.save()
     buf.seek(0)
     return buf.getvalue()
 
-pdf_bytes = generate_pdf(PAGE_TITLE, SECTIONS, preset_scores or results)
+pdf_bytes = generate_pdf(PAGE_TITLE, SECTIONS, preset_scores)
 
 st.download_button(
     label="Ladda ner PDF",
