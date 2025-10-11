@@ -10,7 +10,7 @@ from reportlab.lib.pagesizes import A4
 # Streamlit-app (ingen Flask)
 # =============================
 st.set_page_config(
-    page_title="Självskattning <br> Funktionellt ledarskap",
+    page_title="Självskattning /n/ Funktionellt ledarskap",
     page_icon="📄",
     layout="centered",
 )
