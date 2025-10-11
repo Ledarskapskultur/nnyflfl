@@ -18,7 +18,7 @@ st.set_page_config(
 # ---------- Datamodell för sidans innehåll ----------
 # Allt som visas på sidan hämtas från denna struktur.
 # PDF:en genereras från exakt samma data → hålls i synk.
-PAGE_TITLE = "Självskattning - Funktionellt ledarskap"
+PAGE_TITLE = "Självskattning\n\nFunktionellt ledarskap"
 SECTIONS = [
     {
         "title": "Aktivt lyssnande",
@@ -74,14 +74,20 @@ def generate_pdf_from_sections(page_title: str, sections: list[dict]) -> bytes:
     # Sidhuvud
     pdf.setTitle("självskattning_funktionellt_ledarskap.pdf")
     pdf.setFont("Helvetica-Bold", 16)
-    pdf.drawString(margin_x, top_y, page_title)
+# Stöd för radbrytningar i sidans titel (\n)
+_title_lines = [l for l in page_title.split("\n")]
+_current_y = top_y
+for _line in _title_lines:
+    if _line.strip():
+        pdf.drawString(margin_x, _current_y, _line)
+        _current_y -= 20  # radavstånd för titelrader
 
-    pdf.setFont("Helvetica", 9)
-    timestamp = datetime.now().strftime("Genererad: %Y-%m-%d %H:%M")
-    pdf.drawRightString(width - margin_x, top_y, timestamp)
+pdf.setFont("Helvetica", 9)
+timestamp = datetime.now().strftime("Genererad: %Y-%m-%d %H:%M")
+pdf.drawRightString(width - margin_x, top_y, timestamp)
 
-    # Startposition för textflöde
-    y = top_y - 30
+# Startposition för textflöde under titeln
+y = _current_y - 10
 
     def ensure_space(needed_px: int):
         nonlocal y
