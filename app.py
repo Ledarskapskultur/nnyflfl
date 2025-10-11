@@ -1,6 +1,7 @@
 from io import BytesIO
 from datetime import datetime
 import os
+import json
 import textwrap
 import requests
 
@@ -9,9 +10,9 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.colors import HexColor, black, Color
 
-# =============================
+# =====================================
 # Grundinställningar
-# =============================
+# =====================================
 st.set_page_config(
     page_title="Självskattning – Funktionellt ledarskap",
     page_icon="📄",
@@ -30,18 +31,21 @@ st.markdown(
       .stMarkdown h2 {{ font-size: 19px; font-weight: 700; margin: 24px 0 8px 0; }}
       .stMarkdown p, .stMarkdown {{ font-size: 15px; line-height: 21px; }}
 
-      .card {{ background:#fff; border-radius:14px; border:1px solid rgba(0,0,0,.10);
-               box-shadow:0 6px 20px rgba(0,0,0,.08); }}
+      /* Kort/komponenter */
+      .card {{ background:#fff; border-radius:12px; border:1px solid rgba(0,0,0,.12);
+               box-shadow:0 6px 20px rgba(0,0,0,.08); padding:14px 16px; }}
       .hero {{ text-align:center; padding:34px 28px; }}
       .hero h1 {{ font-size:34px; margin:0 0 8px 0; }}
       .hero p  {{ color:#374151; margin:0 0 18px 0; }}
 
+      /* Kontakt */
       .contact-card {{ padding:12px 14px; }}
       .contact-title {{ font-weight:700; font-size:19px; margin: 6px 0 10px 0; }}
       .stTextInput>div>div>input {{ background:#F8FAFC; }}
 
+      /* Resultatkort (bedömning) */
       .right-wrap {{ display:flex; align-items:center; justify-content:center; }}
-      .res-card {{ max-width:360px; width:100%; padding:16px 18px; }}
+      .res-card {{ max-width:380px; width:100%; padding:16px 18px; }}
       .role-label {{ font-size:13px; color:#111827; margin:10px 0 6px 0; display:block; font-weight:600; }}
       .barbg {{ width:100%; height:10px; background:#E9ECEF; border-radius:6px; overflow:hidden; }}
       .barfill {{ height:10px; display:block; }}
@@ -49,7 +53,6 @@ st.markdown(
       .bar-orange {{ background:#F5A524; }}
       .bar-blue {{ background:#3B82F6; }}
       .maxline {{ font-size:13px; color:#374151; margin-top:12px; font-weight:600; }}
-
       .ok-badge {{ color:#065f46; background:#d1fae5; padding:2px 8px; border-radius:9999px; font-size:12px; }}
       .err-badge {{ color:#991b1b; background:#fee2e2; padding:2px 8px; border-radius:9999px; font-size:12px; }}
     </style>
@@ -57,9 +60,9 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# =============================
+# =====================================
 # Data
-# =============================
+# =====================================
 PAGE_TITLE = "Självskattning – Funktionellt ledarskap"
 
 SECTIONS = [
@@ -71,7 +74,7 @@ SECTIONS = [
 Därför är aktivt lyssnande en av chefens viktigaste färdigheter. Det handlar inte bara om att höra vad som sägs, utan om att förstå, visa intresse och använda den information du får. När du bjuder in till dialog och tar till dig medarbetarnas perspektiv visar du att deras erfarenheter är värdefulla.
 
 Genom att agera på det du hör – bekräfta, följa upp och omsätta idéer i handling – stärker du både engagemang, förtroende och delaktighet.""",
-        "max": 49,
+        "max": 49,  # 7 frågor
     },
     {
         "key": "aterkoppling",
@@ -81,7 +84,7 @@ Genom att agera på det du hör – bekräfta, följa upp och omsätta idéer i 
 Återkoppling handlar sedan om närvaro och uppföljning – att se, lyssna och ge både beröm och konstruktiv feedback. Genom att tydligt lyfta fram vad som fungerar och vad som kan förbättras, förstärker du önskvärda beteenden och hjälper dina medarbetare att lyckas.
 
 I svåra situationer blir återkopplingen extra viktig. Att vara lugn, konsekvent och tydlig när det blåser visar ledarskap på riktigt.""",
-        "max": 56,
+        "max": 56,  # 8 frågor
     },
     {
         "key": "malinriktning",
@@ -91,10 +94,11 @@ I svåra situationer blir återkopplingen extra viktig. Att vara lugn, konsekven
 Som chef handlar det om att formulera mål som går att tro på, och att tydliggöra hur de ska nås. När du delegerar ansvar och befogenheter visar du förtroende och skapar engagemang. Målen blir då inte bara något att leverera på – utan något att vara delaktig i.
 
 Uppföljning är nyckeln. Genom att uppmärksamma framsteg, ge återkoppling och fira resultat förstärker du både prestation och motivation.""",
-        "max": 35,
+        "max": 35,  # 5 frågor
     },
 ]
 
+# Poäng per roll – sätt värden här (visas i UI/PDF)
 preset_scores = {
     "lyssnande":   {"chef": 0, "overchef": 0, "medarbetare": 0},
     "aterkoppling":{"chef": 0, "overchef": 0, "medarbetare": 0},
@@ -103,39 +107,35 @@ preset_scores = {
 
 ROLES_REQUIRE_ID = {"Överordnad chef", "Medarbetare"}
 
-# =============================
-# Power Automate (Flow) webhook
-# =============================
-# Din URL är default; kan överskridas med env-var FLOW_URL vid behov.
+# =====================================
+# Power Automate webhook
+# =====================================
 FLOW_URL_DEFAULT = "https://default1ad3791223f4412ea6272223201343.20.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/bff5923897b04a39bc6ba69ea4afde69/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=B1rjO0FhY0ZxXO8VJvWPmcLAv-LMCgICG6tDguPmhwQ"
 FLOW_URL = os.getenv("FLOW_URL", FLOW_URL_DEFAULT).strip()
 
-def send_to_power_automate(payload: dict) -> tuple[bool, str | None, str | None]:
-    """POSTar till Power Automate. Returnerar (ok, unikt_id, felmeddelande)."""
+def send_to_flow(payload: dict) -> tuple[bool, str | None, str | None]:
+    """POST till Power Automate. Returnerar (ok, unikt_id, fel)."""
     if not FLOW_URL:
         return False, None, "FLOW_URL saknas."
     try:
-        resp = requests.post(FLOW_URL, json=payload, timeout=20)
-        if 200 <= resp.status_code < 300:
+        r = requests.post(FLOW_URL, json=payload, timeout=25)
+        if 200 <= r.status_code < 300:
             try:
-                data = resp.json() if resp.content else {}
+                data = r.json() if r.content else {}
             except Exception:
                 data = {}
-            unikt_id = (
-                data.get("uniktId")
-                or data.get("unikt_id")
-                or data.get("id")
-                or data.get("uniqueId")
-                or data.get("UniqueId")
+            uid = (
+                data.get("uniktId") or data.get("unikt_id") or data.get("id")
+                or data.get("uniqueId") or data.get("UniqueId")
             )
-            return True, (str(unikt_id) if unikt_id is not None else None), None
-        return False, None, f"HTTP {resp.status_code}: {resp.text[:300]}"
+            return True, (str(uid) if uid is not None else None), None
+        return False, None, f"HTTP {r.status_code}: {r.text[:300]}"
     except Exception as e:
         return False, None, str(e)
 
-# =============================
+# =====================================
 # Landningssida
-# =============================
+# =====================================
 def render_landing():
     st.markdown(
         """
@@ -149,18 +149,18 @@ def render_landing():
 
     default = st.session_state.get(
         "kontakt",
-        {"Namn": "", "Företag": "", "Telefon": "", "E-post": "", "Funktion": "Chef", "Unikt id": ""},
+        {"Namn":"", "Företag":"", "Telefon":"", "E-post":"", "Funktion":"Chef", "Unikt id":""},
     )
 
     with st.form("landing_form"):
         c1, c2 = st.columns([0.5, 0.5])
         with c1:
-            namn     = st.text_input("Namn", value=default["Namn"])
-            telefon  = st.text_input("Telefon", value=default["Telefon"])
+            namn = st.text_input("Namn", value=default["Namn"])
+            telefon = st.text_input("Telefon", value=default["Telefon"])
             funktion = st.selectbox(
                 "Funktion",
                 ["Chef", "Överordnad chef", "Medarbetare"],
-                index=["Chef", "Överordnad chef", "Medarbetare"].index(default["Funktion"]),
+                index=["Chef","Överordnad chef","Medarbetare"].index(default["Funktion"]),
             )
         with c2:
             foretag = st.text_input("Företag", value=default["Företag"])
@@ -179,35 +179,50 @@ def render_landing():
             "Telefon": telefon.strip(),
             "E-post": epost.strip(),
             "Funktion": funktion,
-            "Unikt id": default.get("Unikt id", ""),
+            "Unikt id": default.get("Unikt id",""),
         }
 
         if funktion == "Chef":
-            # Anropa Power Automate – skapar SharePoint-post + genererar Unikt id
+            # Summor enligt Flow-schemat (Chefens poäng)
+            sum_listening = int(preset_scores.get("lyssnande", {}).get("chef", 0))
+            sum_feedback  = int(preset_scores.get("aterkoppling", {}).get("chef", 0))
+            sum_goal      = int(preset_scores.get("malinriktning", {}).get("chef", 0))
+
+            answers = []  # plats för framtida enkätsvar
             payload = {
-                "namn": namn.strip(),
-                "foretag": foretag.strip(),
-                "telefon": telefon.strip(),
-                "epost": epost.strip(),
-                "funktion": funktion,
-                "timestamp": datetime.utcnow().isoformat() + "Z",
+                # Krävda fält enligt felmeddelandet/schemat
+                "title": PAGE_TITLE,
+                "name": namn.strip(),
+                "email": epost.strip(),
+                "sumListening": sum_listening,
+                "sumFeedback":  sum_feedback,
+                "sumGoal":      sum_goal,
+                "answersJson":  json.dumps(answers, ensure_ascii=False),
+                "submittedAt":  datetime.utcnow().isoformat() + "Z",
+                "hasPdf":       False,
+
+                # Extra (kan vara användbart i flödet)
+                "company":  foretag.strip(),
+                "phone":    telefon.strip(),
+                "role":     funktion,
             }
-            ok, unikt_id, err = send_to_power_automate(payload)
+
+            ok, uid, err = send_to_flow(payload)
             if ok:
-                if unikt_id:
-                    st.session_state["kontakt"]["Unikt id"] = unikt_id
-                    st.success(f"Post skapad i SharePoint. <span class='ok-badge'>Unikt id: {unikt_id}</span>", icon="✅")
+                if uid:
+                    st.session_state["kontakt"]["Unikt id"] = uid
+                    st.success(f"Post skapad i SharePoint. <span class='ok-badge'>Unikt id: {uid}</span>", icon="✅")
                 else:
-                    st.info("Post skapad i SharePoint, men flödet returnerade inget Unikt id.", icon="ℹ️")
+                    st.info("Post skapad i SharePoint, men flödet returnerade inget unikt id.", icon="ℹ️")
                 st.session_state["page"] = "assessment"
             else:
                 st.error(f"Kunde inte skicka till Power Automate: {err}", icon="🚫")
         else:
-            st.session_state["page"] = "id_page"  # Överordnad/Medarbetare → ange unikt id
+            st.session_state["page"] = "id_page"  # Överordnad/Medarbetare → ange Unikt id
 
-# =============================
-# Sida: Ange Unikt id (Överordnad/Medarbetare)
-# =============================
+# =====================================
+# Sida: Ange unikt id (Överordnad/Medarbetare)
+# =====================================
 def render_id_page():
     st.markdown("## Ange unikt id")
     st.info("Detta steg gäller för Överordnad chef och Medarbetare.")
@@ -233,9 +248,9 @@ def render_id_page():
     if st.button("◀ Tillbaka"):
         st.session_state["page"] = "landing"
 
-# =============================
-# Bedömningssida
-# =============================
+# =====================================
+# Bedömningssida (68/32 + PDF)
+# =====================================
 def render_assessment():
     st.markdown(f"# {PAGE_TITLE}")
 
@@ -256,7 +271,7 @@ def render_assessment():
             kontakt_funktion = st.selectbox(
                 "Funktion",
                 ["Chef", "Överordnad chef", "Medarbetare"],
-                index=["Chef", "Överordnad chef", "Medarbetare"].index(base.get("Funktion","Chef")),
+                index=["Chef","Överordnad chef","Medarbetare"].index(base.get("Funktion","Chef")),
             )
             visa_id = kontakt_funktion in ROLES_REQUIRE_ID or bool(base.get("Unikt id"))
             kontakt_unikt_id = st.text_input("Unikt id", value=base.get("Unikt id",""), disabled=not visa_id)
@@ -273,7 +288,7 @@ def render_assessment():
 
     kontakt = st.session_state["kontakt"]
 
-    # 68/32 + resultatkort
+    # Sektioner 68/32 + resultatkort
     for block in SECTIONS:
         left, right = st.columns([0.68, 0.32])
         with left:
@@ -282,6 +297,7 @@ def render_assessment():
                 st.write(para)
         with right:
             scores = preset_scores.get(block["key"], {"chef":0,"overchef":0,"medarbetare":0})
+
             st.markdown("<div class='right-wrap'>", unsafe_allow_html=True)
             html = [f"<div class='card res-card'>"]
 
@@ -303,7 +319,7 @@ def render_assessment():
     st.divider()
     st.caption("Ladda ner en PDF som speglar allt innehåll – kontakt, texter och resultat.")
 
-    # PDF
+    # ----- PDF (matchar UI) -----
     def generate_pdf(title: str, sections, results_map, kontaktinfo: dict) -> bytes:
         buf = BytesIO()
         pdf = canvas.Canvas(buf, pagesize=A4)
@@ -321,7 +337,7 @@ def render_assessment():
         pdf.setFont("Helvetica", 9); pdf.drawRightString(width-margin_x, top_y+4, datetime.now().strftime("Genererad: %Y-%m-%d %H:%M"))
         y = top_y - 28
 
-        # Kontakt i PDF
+        # Kontaktuppgifter
         pdf.setFont("Helvetica-Bold", 10); pdf.drawString(margin_x, y, "Kontaktuppgifter"); y -= 14
         pdf.setFont("Helvetica", 10)
         row = [
@@ -396,9 +412,9 @@ def render_assessment():
     if st.button("◀ Tillbaka till startsidan"):
         st.session_state["page"] = "landing"
 
-# =============================
+# =====================================
 # Router
-# =============================
+# =====================================
 if "page" not in st.session_state:
     st.session_state["page"] = "landing"
 
