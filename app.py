@@ -1,105 +1,127 @@
-"""
-from reportlab.lib.pagesizes import A4
+from io import BytesIO
 from datetime import datetime
-
-
-app = Flask(__name__)
-
-
-INDEX_HTML = """
-<!doctype html>
-<html lang="sv">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Exempel: Ladda ner PDF</title>
-<style>
-body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 0; background: #f7f7f8; }
-.container { max-width: 800px; margin: 4rem auto; background: white; padding: 2rem; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.06); }
-h1 { margin-top: 0; }
-p { line-height: 1.6; }
-.btn { display: inline-block; padding: 0.75rem 1.2rem; border-radius: 10px; text-decoration: none; border: 0; cursor: pointer; font-weight: 600; background: #0d6efd; color: white; }
-.btn:hover { filter: brightness(0.95); }
-</style>
-</head>
-<body>
-<main class="container">
-<h1>Exempelsida</h1>
-<p>
-Lorem ipsum dolor sit amet, consectetur adipiscing elit. Praesent eget
-velit sed nisl auctor consequat. Suspendisse potenti. Nullam facilisis
-augue at sapien laoreet, et aliquam eros dictum. Vivamus congue, mi vitae
-faucibus mattis, massa nunc aliquet sem, non ultrices nibh neque a augue.
-</p>
-<a class="btn" href="/ladda-ner">Ladda ner PDF</a>
-</main>
-</body>
-</html>
-"""
-
-
-@app.route("/")
-def index():
-return render_template_string(INDEX_HTML)
-
-
-@app.route("/ladda-ner")
-def ladda_ner_pdf():
-# Generera en enkel PDF i minnet
-buffer = io.BytesIO()
-pdf = canvas.Canvas(buffer, pagesize=A4)
-pdf.setTitle("exempel.pdf")
-
-
-width, height = A4
-margin = 50
-
-
-pdf.setFont("Helvetica-Bold", 16)
-pdf.drawString(margin, height - margin, "Exempel-PDF")
-
-
-pdf.setFont("Helvetica", 10)
-datum = datetime.now().strftime("%Y-%m-%d %H:%M")
-pdf.drawString(margin, height - margin - 20, f"Genererad: {datum}")
-
-
-textobject = pdf.beginText()
-textobject.setTextOrigin(margin, height - margin - 60)
-textobject.setFont("Helvetica", 12)
-lorem = (
-"Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor "
-"incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud "
-"exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure "
-"dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. "
-"Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt "
-"mollit anim id est laborum."
-)
-
-
-# Bryt texten till flera rader
 import textwrap
-for line in textwrap.wrap(lorem, width=90):
-textobject.textLine(line)
 
+import streamlit as st
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import A4
 
-pdf.drawText(textobject)
-pdf.showPage()
-pdf.save()
-
-
-buffer.seek(0)
-
-
-return send_file(
-buffer,
-as_attachment=True,
-download_name="exempel.pdf",
-mimetype="application/pdf",
+# =============================
+# Streamlit-app (ingen Flask)
+# =============================
+st.set_page_config(
+    page_title="Självskattning - Funktionellt ledarskap",
+    page_icon="📄",
+    layout="centered",
 )
 
+# ---------- Datamodell för sidans innehåll ----------
+# Allt som visas på sidan hämtas från denna struktur.
+# PDF:en genereras från exakt samma data → hålls i synk.
+PAGE_TITLE = "Självskattning - Funktionellt ledarskap"
+SECTIONS = [
+    {
+        "title": "Aktivt lyssnande",
+        "text": (
+            "Förmågan att vara närvarande i samtal och aktivt lyssna på medarbetare är en grundläggande del av ett "
+            "funktionellt ledarskap. Det handlar om att verkligen förstå vad den andra personen säger – både genom ord "
+            "och känslor – och visa att du lyssnar. Reflektera över hur ofta du skapar utrymme för andra att uttrycka "
+            "sig utan att avbryta."
+        ),
+    },
+    {
+        "title": "Återkoppling",
+        "text": (
+            "Återkoppling är en central del i ledarskap som skapar utveckling, tydlighet och motivation. Fundera på hur "
+            "du ger återkoppling – både positiv och korrigerande – och om den landar på ett sätt som stärker förtroendet. "
+            "Ett funktionellt ledarskap bygger på kontinuerlig, konstruktiv återkoppling."
+        ),
+    },
+    {
+        "title": "Målinriktning",
+        "text": (
+            "Att vara målinriktad handlar inte bara om att sätta upp mål, utan att skapa mening och riktning i vardagen. "
+            "Hur tydliga är era mål i teamet? Vet alla varför de gör det de gör? Reflektera över hur du som ledare skapar "
+            "engagemang kring målen."
+        ),
+    },
+]
+
+# ---------- Rendera sidan ----------
+st.title(PAGE_TITLE)
+for block in SECTIONS:
+    st.header(block["title"])
+    st.write(block["text"])
+
+st.divider()
+st.caption("Klicka på knappen nedan för att ladda ner en PDF som speglar allt innehåll på sidan.")
+
+# ---------- PDF-generering från samma datamodell ----------
+
+def generate_pdf_from_sections(page_title: str, sections: list[dict]) -> bytes:
+    """Skapar en PDF som speglar allt innehåll på sidan.
+    Hanterar radbrytningar och sidbrytningar för längre texter.
+    """
+    buf = BytesIO()
+    pdf = canvas.Canvas(buf, pagesize=A4)
+    width, height = A4
+
+    # Marginaler och typografi
+    margin_x = 50
+    top_y = height - 50
+    line_h = 16  # radavstånd för brödtext
+
+    # Sidhuvud
+    pdf.setTitle("självskattning_funktionellt_ledarskap.pdf")
+    pdf.setFont("Helvetica-Bold", 16)
+    pdf.drawString(margin_x, top_y, page_title)
+
+    pdf.setFont("Helvetica", 9)
+    timestamp = datetime.now().strftime("Genererad: %Y-%m-%d %H:%M")
+    pdf.drawRightString(width - margin_x, top_y, timestamp)
+
+    # Startposition för textflöde
+    y = top_y - 30
+
+    def ensure_space(needed_px: int):
+        nonlocal y
+        if y - needed_px < 40:  # sidfotmarginal
+            pdf.showPage()
+            # Ny sida, skriv rubrik i sidhuvud litet
+            pdf.setFont("Helvetica", 9)
+            pdf.drawString(margin_x, height - 40, page_title)
+            y = height - 60
+
+    for block in sections:
+        # Rubrik för sektion
+        ensure_space(30)
+        pdf.setFont("Helvetica-Bold", 13)
+        pdf.drawString(margin_x, y, block["title"])
+        y -= 20
+
+        # Brödtext med ord-brytning
+        pdf.setFont("Helvetica", 12)
+        wrapped = textwrap.wrap(block["text"], width=95)
+        for line in wrapped:
+            ensure_space(line_h)
+            pdf.drawString(margin_x, y, line)
+            y -= line_h
+
+        # Avstånd mellan sektioner
+        y -= 10
+
+    pdf.showPage()
+    pdf.save()
+    buf.seek(0)
+    return buf.getvalue()
 
 
+pdf_bytes = generate_pdf_from_sections(PAGE_TITLE, SECTIONS)
 
-if __name__ == "__main__":
-app.run(debug=True)
+st.download_button(
+    label="Ladda ner PDF",
+    data=pdf_bytes,
+    file_name="självskattning_funktionellt_ledarskap.pdf",
+    mime="application/pdf",
+    type="primary",
+)
