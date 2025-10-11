@@ -18,7 +18,7 @@ st.set_page_config(
 # ---------- Datamodell för sidans innehåll ----------
 # Allt som visas på sidan hämtas från denna struktur.
 # PDF:en genereras från exakt samma data → hålls i synk.
-PAGE_TITLE = "Självskattning <br> Funktionellt ledarskap"
+PAGE_TITLE = "Självskattning\n\nFunktionellt ledarskap"
 SECTIONS = [
     {
         "title": "Aktivt lyssnande",
@@ -74,22 +74,21 @@ def generate_pdf_from_sections(page_title: str, sections: list[dict]) -> bytes:
     # Sidhuvud
     pdf.setTitle("självskattning_funktionellt_ledarskap.pdf")
     pdf.setFont("Helvetica-Bold", 16)
-# Stöd för radbrytningar i sidans titel (
-)
-_title_lines = [l for l in page_title.split("
-")]
-_current_y = top_y
-for _line in _title_lines:
-    if _line.strip():
-        pdf.drawString(margin_x, _current_y, _line)
-        _current_y -= 20  # radavstånd för titelrader
 
-pdf.setFont("Helvetica", 9)
-timestamp = datetime.now().strftime("Genererad: %Y-%m-%d %H:%M")
-pdf.drawRightString(width - margin_x, top_y, timestamp)
+    # Stöd för radbrytningar i sidans titel (\n)
+    title_lines = page_title.split("\n")
+    current_y = top_y
+    for line in title_lines:
+        if line.strip():
+            pdf.drawString(margin_x, current_y, line)
+            current_y -= 20  # radavstånd för titelrader
 
-# Startposition för textflöde under titeln
-y = _current_y - 10
+    pdf.setFont("Helvetica", 9)
+    timestamp = datetime.now().strftime("Genererad: %Y-%m-%d %H:%M")
+    pdf.drawRightString(width - margin_x, top_y, timestamp)
+
+    # Startposition för textflöde under titeln
+    y = current_y - 10
 
     def ensure_space(needed_px: int):
         nonlocal y
@@ -97,7 +96,7 @@ y = _current_y - 10
             pdf.showPage()
             # Ny sida, skriv rubrik i sidhuvud litet
             pdf.setFont("Helvetica", 9)
-            pdf.drawString(margin_x, height - 40, page_title)
+            pdf.drawString(margin_x, height - 40, page_title.replace("\n", " "))
             y = height - 60
 
     for block in sections:
@@ -107,7 +106,7 @@ y = _current_y - 10
         pdf.drawString(margin_x, y, block["title"])
         y -= 20
 
-        # Brödtext med ord-brytning
+        # Brödtext med ordbrytning
         pdf.setFont("Helvetica", 12)
         wrapped = textwrap.wrap(block["text"], width=95)
         for line in wrapped:
