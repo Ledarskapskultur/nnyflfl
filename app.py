@@ -18,7 +18,7 @@ st.set_page_config(
 
 EGGSHELL = "#FAF7F0"
 
-# Global CSS (gäller båda sidor)
+# Global CSS
 st.markdown(
     f"""
     <style>
@@ -70,7 +70,7 @@ SECTIONS = [
 Därför är aktivt lyssnande en av chefens viktigaste färdigheter. Det handlar inte bara om att höra vad som sägs, utan om att förstå, visa intresse och använda den information du får. När du bjuder in till dialog och tar till dig medarbetarnas perspektiv visar du att deras erfarenheter är värdefulla.
 
 Genom att agera på det du hör – bekräfta, följa upp och omsätta idéer i handling – stärker du både engagemang, förtroende och delaktighet.""",
-        "max": 49,  # 7 frågor
+        "max": 49,
     },
     {
         "key": "aterkoppling",
@@ -80,7 +80,7 @@ Genom att agera på det du hör – bekräfta, följa upp och omsätta idéer i 
 Återkoppling handlar sedan om närvaro och uppföljning – att se, lyssna och ge både beröm och konstruktiv feedback. Genom att tydligt lyfta fram vad som fungerar och vad som kan förbättras, förstärker du önskvärda beteenden och hjälper dina medarbetare att lyckas.
 
 I svåra situationer blir återkopplingen extra viktig. Att vara lugn, konsekvent och tydlig när det blåser visar ledarskap på riktigt.""",
-        "max": 56,  # 8 frågor
+        "max": 56,
     },
     {
         "key": "malinriktning",
@@ -90,11 +90,11 @@ I svåra situationer blir återkopplingen extra viktig. Att vara lugn, konsekven
 Som chef handlar det om att formulera mål som går att tro på, och att tydliggöra hur de ska nås. När du delegerar ansvar och befogenheter visar du förtroende och skapar engagemang. Målen blir då inte bara något att leverera på – utan något att vara delaktig i.
 
 Uppföljning är nyckeln. Genom att uppmärksamma framsteg, ge återkoppling och fira resultat förstärker du både prestation och motivation.""",
-        "max": 35,  # 5 frågor
+        "max": 35,
     },
 ]
 
-# Poäng per roll i varje del (visa – ingen inmatning i UI)
+# Poäng per roll (visas – ingen inmatning)
 preset_scores = {
     "lyssnande":   {"chef": 0, "overchef": 0, "medarbetare": 0},
     "aterkoppling":{"chef": 0, "overchef": 0, "medarbetare": 0},
@@ -103,6 +103,7 @@ preset_scores = {
 
 ROLE_LABELS = {"chef": "Chef", "overchef": "Överordnad chef", "medarbetare": "Medarbetare"}
 ROLE_ORDER  = ["chef", "overchef", "medarbetare"]
+ROLES_REQUIRE_CODE = {"Överordnad chef", "Medarbetare"}  # roller som kräver Kod
 
 # =============================
 # LANDNINGSSIDA
@@ -121,36 +122,45 @@ def render_landing():
     # Förifyll om användaren redan varit här
     default = st.session_state.get(
         "kontakt",
-        {"Namn": "", "Företag": "", "Telefon": "", "E-post": "", "Funktion": "Chef"},
+        {"Namn": "", "Företag": "", "Telefon": "", "E-post": "", "Funktion": "Chef", "Kod": ""},
     )
 
     with st.form("landing_form"):
-        c1, c2 = st.columns([0.5, 0.5])
+        # 3 kolumner så att Kod hamnar till höger om Funktion
+        c1, c2, c3 = st.columns([0.34, 0.33, 0.33])
         with c1:
             namn     = st.text_input("Namn", value=default["Namn"])
             telefon  = st.text_input("Telefon", value=default["Telefon"])
-            funktion = st.selectbox(
-                "Funktion",
-                ["Chef", "Överordnad chef", "Medarbetare"],
-                index=["Chef", "Överordnad chef", "Medarbetare"].index(default["Funktion"]),
-            )
         with c2:
-            foretag = st.text_input("Företag", value=default["Företag"])
-            epost   = st.text_input("E-post", value=default["E-post"])
+            foretag  = st.text_input("Företag", value=default["Företag"])
+            epost    = st.text_input("E-post", value=default["E-post"])
+        with c3:
+            funktion = st.selectbox(
+                "Funktion", ["Chef", "Överordnad chef", "Medarbetare"],
+                index=["Chef", "Överordnad chef", "Medarbetare"].index(default["Funktion"])
+            )
+            # Visa kodfält om rollen kräver kod, annars visa ett "disabled" fält som är grått
+            visa_kod = funktion in ROLES_REQUIRE_CODE
+            kod = st.text_input("Kod (obligatorisk)", value=default["Kod"], disabled=not visa_kod)
 
         start = st.form_submit_button("Starta självskattning", type="primary")
 
     if start:
-        # enkel validering
+        # Validering
         if not namn.strip() or not epost.strip():
             st.warning("Fyll i minst Namn och E-post för att fortsätta.")
             return
+        if funktion in ROLES_REQUIRE_CODE and not kod.strip():
+            st.warning("Kod är obligatoriskt för vald funktion.")
+            return
+
         st.session_state["kontakt"] = {
             "Namn": namn.strip(),
             "Företag": foretag.strip(),
             "Telefon": telefon.strip(),
             "E-post": epost.strip(),
             "Funktion": funktion,
+            "Kod": kod.strip() if funktion in ROLES_REQUIRE_CODE else "",
         }
         st.session_state["page"] = "assessment"
 
@@ -165,8 +175,9 @@ def render_assessment():
     with st.container():
         st.markdown("<div class='card contact-card'>", unsafe_allow_html=True)
 
-        base = st.session_state.get("kontakt", {"Namn":"","Företag":"","Telefon":"","E-post":"","Funktion":"Chef"})
+        base = st.session_state.get("kontakt", {"Namn":"","Företag":"","Telefon":"","E-post":"","Funktion":"Chef","Kod":""})
 
+        # 3 kolumner: Namn/E-post | Företag/Telefon | Funktion/Kod
         c1, c2, c3 = st.columns([0.4, 0.3, 0.3])
         with c1:
             kontakt_namn  = st.text_input("Namn", value=base.get("Namn",""))
@@ -176,10 +187,11 @@ def render_assessment():
             kontakt_tel     = st.text_input("Telefon", value=base.get("Telefon",""))
         with c3:
             kontakt_funktion = st.selectbox(
-                "Funktion",
-                ["Chef", "Överordnad chef", "Medarbetare"],
-                index=["Chef", "Överordnad chef", "Medarbetare"].index(base.get("Funktion","Chef")),
+                "Funktion", ["Chef", "Överordnad chef", "Medarbetare"],
+                index=["Chef", "Överordnad chef", "Medarbetare"].index(base.get("Funktion","Chef"))
             )
+            visa_kod = kontakt_funktion in ROLES_REQUIRE_CODE
+            kontakt_kod = st.text_input("Kod (obligatorisk)", value=base.get("Kod",""), disabled=not visa_kod)
 
         # spara ev. ändringar
         st.session_state["kontakt"] = {
@@ -188,6 +200,7 @@ def render_assessment():
             "Telefon": kontakt_tel.strip(),
             "E-post": kontakt_epost.strip(),
             "Funktion": kontakt_funktion,
+            "Kod": kontakt_kod.strip() if visa_kod else "",
         }
         st.markdown("</div>", unsafe_allow_html=True)
 
@@ -227,7 +240,12 @@ def render_assessment():
             st.markdown("</div>", unsafe_allow_html=True)
 
     st.divider()
-    st.caption("Klicka på knappen nedan för att ladda ner en PDF som speglar allt innehåll – kontakt, texter och resultat.")
+
+    # Disable PDF-knapp om kod krävs men saknas
+    disable_pdf = (kontakt["Funktion"] in ROLES_REQUIRE_CODE) and (not kontakt["Kod"])
+    if disable_pdf:
+        st.warning("Kod är obligatoriskt för vald funktion.")
+    st.caption("Ladda ner en PDF som speglar allt innehåll – kontakt, texter och resultat.")
 
     # ----- PDF (matchar UI-format) -----
     def generate_pdf(title: str, sections, results_map, kontaktinfo: dict) -> bytes:
@@ -257,6 +275,8 @@ def render_assessment():
             f"E-post: {kontaktinfo.get('E-post','')}",
             f"Funktion: {kontaktinfo.get('Funktion','')}",
         ]
+        if kontaktinfo.get("Funktion") in ROLES_REQUIRE_CODE:
+            row.append(f"Kod: {kontaktinfo.get('Kod','')}")
         line = "   |   ".join(row)
         if len(line) > 110:
             mid = len(row)//2
@@ -324,9 +344,15 @@ def render_assessment():
         return buf.getvalue()
 
     pdf_bytes = generate_pdf(PAGE_TITLE, SECTIONS, preset_scores, kontakt)
-    st.download_button("Ladda ner PDF", data=pdf_bytes,
-                       file_name="självskattning_funktionellt_ledarskap.pdf",
-                       mime="application/pdf", type="primary")
+
+    st.download_button(
+        "Ladda ner PDF",
+        data=pdf_bytes,
+        file_name="självskattning_funktionellt_ledarskap.pdf",
+        mime="application/pdf",
+        type="primary",
+        disabled=disable_pdf,
+    )
 
     if st.button("◀ Tillbaka till startsidan"):
         st.session_state["page"] = "landing"
