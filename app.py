@@ -106,18 +106,44 @@ def render_landing():
         """
         <div class="card hero">
           <h1>Självskattning – Funktionellt ledarskap</h1>
-          <p>En snabb självskattning inom tre områden: <b>Aktivt lyssnande</b>, <b>Återkoppling</b> och <b>Målinriktning</b>.</p>
-          <div class="cta">
-            <a class="pill" href="#" id="start-btn">Starta självskattning</a>
-            <a class="pill secondary" href="https://example.com" target="_blank">Läs mer</a>
-          </div>
+          <p>Fyll i dina uppgifter nedan och starta självskattningen.</p>
         </div>
         """,
         unsafe_allow_html=True,
     )
-    # Streamlit-knapp för tillgänglighet och state
-    start = st.button("Starta självskattning", type="primary")
+
+    # Förifyll om man varit här tidigare
+    default = st.session_state.get("kontakt", {
+        "Namn": "", "Företag": "", "Telefon": "", "E-post": "", "Funktion": "Chef"
+    })
+
+    with st.form("landing_form"):
+        c1, c2 = st.columns([0.5, 0.5])
+        with c1:
+            namn    = st.text_input("Namn", value=default["Namn"])
+            telefon = st.text_input("Telefon", value=default["Telefon"])
+            funktion = st.selectbox(
+                "Funktion", ["Chef", "Överordnad chef", "Medarbetare"],
+                index=["Chef","Överordnad chef","Medarbetare"].index(default["Funktion"])
+            )
+        with c2:
+            foretag = st.text_input("Företag", value=default["Företag"])
+            epost   = st.text_input("E-post", value=default["E-post"])
+
+        start = st.form_submit_button("Starta självskattning", type="primary")
+
     if start:
+        # enkel validering
+        if not namn.strip() or not epost.strip():
+            st.warning("Fyll i minst Namn och E-post för att fortsätta.")
+            return
+        st.session_state["kontakt"] = {
+            "Namn": namn.strip(),
+            "Företag": foretag.strip(),
+            "Telefon": telefon.strip(),
+            "E-post": epost.strip(),
+            "Funktion": funktion,
+        }
         st.session_state["page"] = "assessment"
 
 # ========= BEDÖMNINGS-SIDA =========
