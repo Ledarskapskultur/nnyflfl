@@ -17,7 +17,7 @@ st.set_page_config(
 )
 
 # ---------- Design (äggskalsvit bakgrund & typografi) ----------
-eggshell_hex = "#FAF7F0"  # fast äggskalsvit enligt önskemål
+eggshell_hex = "#FAF7F0"  # fast äggskalsvit
 st.markdown(
     f"""
     <style>
@@ -27,7 +27,6 @@ st.markdown(
       .stMarkdown h1 {{ font-size: 29px; font-weight: 700; margin: 0 0 6px 0; }}
       .stMarkdown h2 {{ font-size: 19px; font-weight: 700; margin: 24px 0 8px 0; }}
       .stMarkdown p, .stMarkdown {{ font-size: 15px; line-height: 21px; }}
-      /* Resultat-kort (likt bilden) */
       .card {{ background: #fff; border-radius: 12px; box-shadow: 0 4px 16px rgba(0,0,0,.08); padding: 14px 16px; border: 1px solid rgba(0,0,0,.12); max-width: 320px; margin: 0 auto; }}
       .card h3 {{ margin: 0 0 8px 0; font-size: 16px; }}
       .score {{ font-size: 40px; font-weight: 800; margin: 2px 0 8px 0; text-align:center; }}
@@ -55,93 +54,58 @@ SECTIONS = [
     {
         "key": "lyssnande",
         "title": "Aktivt lyssnande",
-        "text": (
-            "I dagens arbetsliv har chefens roll förändrats. Medarbetarna sitter ofta på den djupaste kompetensen och "
-            "lösningarna på verksamhetens utmaningar.
+        "text": """I dagens arbetsliv har chefens roll förändrats. Medarbetarna sitter ofta på den djupaste kompetensen och lösningarna på verksamhetens utmaningar.
 
-"
-            "Därför är aktivt lyssnande en av chefens viktigaste färdigheter. Det handlar inte bara om att höra vad som "
-            "sägs, utan om att förstå, visa intresse och använda den information du får. När du bjuder in till dialog "
-            "och tar till dig medarbetarnas perspektiv visar du att deras erfarenheter är värdefulla.
+Därför är aktivt lyssnande en av chefens viktigaste färdigheter. Det handlar inte bara om att höra vad som sägs, utan om att förstå, visa intresse och använda den information du får. När du bjuder in till dialog och tar till dig medarbetarnas perspektiv visar du att deras erfarenheter är värdefulla.
 
-"
-            "Genom att agera på det du hör – bekräfta, följa upp och omsätta idéer i handling – stärker du både "
-            "engagemang, förtroende och delaktighet."
-        ),
+Genom att agera på det du hör – bekräfta, följa upp och omsätta idéer i handling – stärker du både engagemang, förtroende och delaktighet.""",
         "max": 49,  # 7 frågor
     },
     {
         "key": "aterkoppling",
         "title": "Återkoppling",
-        "text": (
-            "Effektiv återkoppling är grunden för både utveckling och motivation. Medarbetare behöver veta vad som "
-            "förväntas, hur de ligger till och hur de kan växa. När du som chef tydligt beskriver uppgifter och "
-            "förväntade beteenden skapar du trygghet och fokus i arbetet.
+        "text": """Effektiv återkoppling är grunden för både utveckling och motivation. Medarbetare behöver veta vad som förväntas, hur de ligger till och hur de kan växa. När du som chef tydligt beskriver uppgifter och förväntade beteenden skapar du trygghet och fokus i arbetet.
 
-"
-            "Återkoppling handlar sedan om närvaro och uppföljning – att se, lyssna och ge både beröm och konstruktiv "
-            "feedback. Genom att tydligt lyfta fram vad som fungerar och vad som kan förbättras, förstärker du "
-            "önskvärda beteenden och hjälper dina medarbetare att lyckas.
+Återkoppling handlar sedan om närvaro och uppföljning – att se, lyssna och ge både beröm och konstruktiv feedback. Genom att tydligt lyfta fram vad som fungerar och vad som kan förbättras, förstärker du önskvärda beteenden och hjälper dina medarbetare att lyckas.
 
-"
-            "I svåra situationer blir återkopplingen extra viktig. Att vara lugn, konsekvent och tydlig när det blåser "
-            "visar ledarskap på riktigt."
-        ),
+I svåra situationer blir återkopplingen extra viktig. Att vara lugn, konsekvent och tydlig när det blåser visar ledarskap på riktigt.""",
         "max": 56,  # 8 frågor
     },
     {
         "key": "malinriktning",
         "title": "Målinriktning",
-        "text": (
-            "Målinriktat ledarskap handlar om att ge tydliga ramar – tid, resurser och ansvar – så att medarbetare kan "
-            "arbeta effektivt och med trygghet. Tydliga och inspirerande mål skapar riktning och hjälper alla att "
-            "förstå vad som är viktigt just nu.
+        "text": """Målinriktat ledarskap handlar om att ge tydliga ramar – tid, resurser och ansvar – så att medarbetare kan arbeta effektivt och med trygghet. Tydliga och inspirerande mål skapar riktning och hjälper alla att förstå vad som är viktigt just nu.
 
-"
-            "Som chef handlar det om att formulera mål som går att tro på, och att tydliggöra hur de ska nås. När du "
-            "delegerar ansvar och befogenheter visar du förtroende och skapar engagemang. Målen blir då inte bara "
-            "något att leverera på – utan något att vara delaktig i.
+Som chef handlar det om att formulera mål som går att tro på, och att tydliggöra hur de ska nås. När du delegerar ansvar och befogenheter visar du förtroende och skapar engagemang. Målen blir då inte bara något att leverera på – utan något att vara delaktig i.
 
-"
-            "Uppföljning är nyckeln. Genom att uppmärksamma framsteg, ge återkoppling och fira resultat förstärker du "
-            "både prestation och motivation."
-        ),
+Uppföljning är nyckeln. Genom att uppmärksamma framsteg, ge återkoppling och fira resultat förstärker du både prestation och motivation.""",
         "max": 35,  # 5 frågor
     },
 ]
 
-# Resultat per roll och sektion (ingen inmatning – sätt värden här)
+# Resultat per roll (sätt värden här om du vill visa något annat än 0)
 preset_scores = {
-    "lyssnande": {"chef": 0, "overchef": 0, "medarbetare": 0},
-    "aterkoppling": {"chef": 0, "overchef": 0, "medarbetare": 0},
-    "malinriktning": {"chef": 0, "overchef": 0, "medarbetare": 0},
+    "lyssnande":   {"chef": 0, "overchef": 0, "medarbetare": 0},
+    "aterkoppling":{"chef": 0, "overchef": 0, "medarbetare": 0},
+    "malinriktning":{"chef": 0, "overchef": 0, "medarbetare": 0},
 }
 
-ROLE_LABELS = {
-    "chef": "Chef",
-    "overchef": "Överordnad chef",
-    "medarbetare": "Medarbetare",
-}
+ROLE_LABELS = {"chef": "Chef", "overchef": "Överordnad chef", "medarbetare": "Medarbetare"}
 ROLE_ORDER = ["chef", "overchef", "medarbetare"]
 
 # ---------- Rendera titel ----------
 st.markdown(f"# {PAGE_TITLE}")
 
-# ---------- Kontaktuppgifter (mellan titel och första sektionen) ----------
+# ---------- Kontaktuppgifter ----------
 st.markdown("<div class='contact-title'>Kontaktuppgifter</div>", unsafe_allow_html=True)
 with st.container():
     st.markdown("<div class='contact-card'>", unsafe_allow_html=True)
     c1, c2, c3, c4, c5 = st.columns([0.15, 0.2, 0.2, 0.2, 0.25])
-    with c1:
-        kontakt_id = st.text_input("Unikt id", value="")
-    with c2:
-        kontakt_namn = st.text_input("Namn", value="")
-    with c3:
-        kontakt_foretag = st.text_input("Företag", value="")
-    with c4:
-        kontakt_tel = st.text_input("Telefon", value="")
-    with c5:
-        kontakt_epost = st.text_input("E-post", value="")
+    with c1: kontakt_id = st.text_input("Unikt id", value="")
+    with c2: kontakt_namn = st.text_input("Namn", value="")
+    with c3: kontakt_foretag = st.text_input("Företag", value="")
+    with c4: kontakt_tel = st.text_input("Telefon", value="")
+    with c5: kontakt_epost = st.text_input("E-post", value="")
     st.markdown("</div>", unsafe_allow_html=True)
 
 kontakt = {
@@ -157,21 +121,15 @@ results = {}
 for block in SECTIONS:
     left, right = st.columns([0.68, 0.32])
     with left:
-        st.header(block["title"])  # H2
-        for para in block["text"].split("
-
-"):
+        st.header(block["title"])
+        for para in block["text"].split("\n\n"):
             st.write(para)
     with right:
         scores = preset_scores.get(block["key"], {r: 0 for r in ROLE_ORDER})
         results[block["key"]] = scores
 
         st.markdown("<div class='right-wrap'>", unsafe_allow_html=True)
-        # Resultat-kort
-        card_html = [
-            f"<div class='card'><h3>{block['title']}</h3>",
-        ]
-        # Tre progressbars
+        card_html = [f"<div class='card'><h3>{block['title']}</h3>"]
         for role in ROLE_ORDER:
             val = int(scores.get(role, 0))
             pct = 0 if block["max"] == 0 else (val / block["max"]) * 100
@@ -180,23 +138,19 @@ for block in SECTIONS:
             card_html.append(f"<div class='barbg'><span class='barfill {color_class}' style='width:{pct:.0f}%'></span></div>")
             card_html.append(f"<div class='summa'>Summa {val}/{block['max']}</div>")
         card_html.append("</div>")
-        st.markdown("
-".join(card_html), unsafe_allow_html=True)
+        st.markdown("\n".join(card_html), unsafe_allow_html=True)
         st.markdown("</div>", unsafe_allow_html=True)
 
 st.divider()
 st.caption("Klicka på knappen nedan för att ladda ner en PDF som speglar allt innehåll – texter och resultat.")
 
-# ---------- PDF-generering från samma datamodell (inkl. 3 bars/sektion + kontakt) ----------
-
+# ---------- PDF-generering ----------
 def generate_pdf(title: str, sections, results_map, kontaktinfo: dict):
     buf = BytesIO()
     pdf = canvas.Canvas(buf, pagesize=A4)
     width, height = A4
 
-    # Bakgrund (äggskalsvit)
-    pdf.setFillColor(HexColor(eggshell_hex))
-    pdf.rect(0, 0, width, height, fill=1, stroke=0)
+    pdf.setFillColor(HexColor(eggshell_hex)); pdf.rect(0, 0, width, height, fill=1, stroke=0)
     pdf.setFillColor(black)
 
     margin_x = 50
@@ -208,19 +162,15 @@ def generate_pdf(title: str, sections, results_map, kontaktinfo: dict):
 
     pdf.setTitle("självskattning_funktionellt_ledarskap.pdf")
 
-    pdf.setFont("Helvetica-Bold", h1_size)
-    pdf.drawString(margin_x, top_y, title)
-
+    pdf.setFont("Helvetica-Bold", h1_size); pdf.drawString(margin_x, top_y, title)
     pdf.setFont("Helvetica", 9)
     timestamp = datetime.now().strftime("Genererad: %Y-%m-%d %H:%M")
     pdf.drawRightString(width - margin_x, top_y + 4, timestamp)
 
     y = top_y - 28
 
-    # Kontaktuppgifter i PDF (en rad)
-    pdf.setFont("Helvetica-Bold", 10)
-    pdf.drawString(margin_x, y, "Kontaktuppgifter")
-    y -= 14
+    # Kontaktuppgifter
+    pdf.setFont("Helvetica-Bold", 10); pdf.drawString(margin_x, y, "Kontaktuppgifter"); y -= 14
     pdf.setFont("Helvetica", 10)
     row = [
         f"Unikt id: {kontaktinfo.get('Unikt id','')}",
@@ -229,12 +179,10 @@ def generate_pdf(title: str, sections, results_map, kontaktinfo: dict):
         f"Telefon: {kontaktinfo.get('Telefon','')}",
         f"E-post: {kontaktinfo.get('E-post','')}",
     ]
-    # Skriv i två rader om det blir för långt
     text_line = "   |   ".join(row)
     if len(text_line) > 110:
-        mid = len(row)//2
-        line1 = "   |   ".join(row[:mid])
-        line2 = "   |   ".join(row[mid:])
+        mid = len(row) // 2
+        line1 = "   |   ".join(row[:mid]); line2 = "   |   ".join(row[mid:])
         pdf.drawString(margin_x, y, line1); y -= 14
         pdf.drawString(margin_x, y, line2); y -= 8
     else:
@@ -244,29 +192,23 @@ def generate_pdf(title: str, sections, results_map, kontaktinfo: dict):
         nonlocal y
         if y - needed_px < 50:
             pdf.showPage()
-            pdf.setFillColor(HexColor(eggshell_hex))
-            pdf.rect(0, 0, width, height, fill=1, stroke=0)
-            pdf.setFillColor(black)
-            pdf.setFont("Helvetica", 9)
+            pdf.setFillColor(HexColor(eggshell_hex)); pdf.rect(0, 0, width, height, fill=1, stroke=0)
+            pdf.setFillColor(black); pdf.setFont("Helvetica", 9)
             pdf.drawString(margin_x, height - 40, title)
             y = height - 60
 
     bar_bg = Color(0.91, 0.92, 0.94)
-    bar_green = Color(0.30, 0.69, 0.31)    # #4CAF50
-    bar_orange = Color(0.96, 0.65, 0.15)   # #F5A524
-    bar_blue = Color(0.23, 0.51, 0.96)     # #3B82F6
+    bar_green = Color(0.30, 0.69, 0.31)
+    bar_orange = Color(0.96, 0.65, 0.15)
+    bar_blue = Color(0.23, 0.51, 0.96)
 
     for block in sections:
         ensure_space(30)
-        pdf.setFont("Helvetica-Bold", h2_size)
-        pdf.drawString(margin_x, y, block["title"])
-        y -= h2_size + 6
+        pdf.setFont("Helvetica-Bold", h2_size); pdf.drawString(margin_x, y, block["title"]); y -= h2_size + 6
 
         pdf.setFont("Helvetica", body_size)
         wrapped = []
-        for para in block["text"].split("
-
-"):
+        for para in block["text"].split("\n\n"):
             wrapped += textwrap.wrap(para, width=95) + [""]
         for line in wrapped:
             ensure_space(line_h)
@@ -274,7 +216,7 @@ def generate_pdf(title: str, sections, results_map, kontaktinfo: dict):
                 pdf.drawString(margin_x, y, line)
             y -= line_h
 
-        # Tre rollstaplar
+        # Tre progressbars (Chef, Överordnad chef, Medarbetare)
         role_seq = [("chef", bar_green), ("overchef", bar_orange), ("medarbetare", bar_blue)]
         for role, color in role_seq:
             val = int(results_map.get(block["key"], {}).get(role, 0))
@@ -283,17 +225,13 @@ def generate_pdf(title: str, sections, results_map, kontaktinfo: dict):
             pdf.setFont("Helvetica", 10)
             pdf.drawString(margin_x, y, f"{ROLE_LABELS[role]} – Summa {val}/{max_val}")
             y -= 12
-            bar_w = width - margin_x * 2
-            bar_h = 8
+            bar_w = width - margin_x * 2; bar_h = 8
             pdf.setFillColor(bar_bg); pdf.rect(margin_x, y, bar_w, bar_h, fill=1, stroke=0)
             fill_w = 0 if max_val == 0 else bar_w * (val / max_val)
             pdf.setFillColor(color); pdf.rect(margin_x, y, fill_w, bar_h, fill=1, stroke=0)
-            pdf.setFillColor(black)
-            y -= 14
+            pdf.setFillColor(black); y -= 14
 
-    pdf.showPage()
-    pdf.save()
-    buf.seek(0)
+    pdf.showPage(); pdf.save(); buf.seek(0)
     return buf.getvalue()
 
 pdf_bytes = generate_pdf(PAGE_TITLE, SECTIONS, preset_scores, kontakt)
