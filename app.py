@@ -23,15 +23,10 @@ st.markdown(
     <style>
       .stApp {{ background-color: {eggshell_hex}; }}
       .block-container {{ padding-top: 2rem; padding-bottom: 3rem; }}
-      /* Typografi – matcha PDF (Helvetica) */
       html, body, [class*="css"] {{ font-family: Helvetica, Arial, sans-serif; }}
-      /* H1 = 22pt ≈ 29px */
       .stMarkdown h1 {{ font-size: 29px; font-weight: 700; margin: 0 0 6px 0; }}
-      /* H2 = 14pt ≈ 19px */
       .stMarkdown h2 {{ font-size: 19px; font-weight: 700; margin: 24px 0 8px 0; }}
-      /* Brödtext = 11pt ≈ 15px, radavstånd ≈ 21px */
       .stMarkdown p, .stMarkdown {{ font-size: 15px; line-height: 21px; }}
-      /* Resultat-kort (likt bilden) */
       .card {{ background: #fff; border-radius: 12px; box-shadow: 0 4px 16px rgba(0,0,0,.08); padding: 14px 16px; border: 1px solid rgba(0,0,0,.12); }}
       .card h3 {{ margin: 0 0 8px 0; font-size: 16px; }}
       .score {{ font-size: 40px; font-weight: 800; margin: 4px 0 8px 0; }}
@@ -92,29 +87,24 @@ SECTIONS = [
     },
 ]
 
+# Om du vill sätta resultat programatiskt, gör det här.
+# ex: preset_scores = {"lyssnande": 8, "aterkoppling": 8, "malinriktning": 5}
+preset_scores = {}
+
 # ---------- Rendera titel ----------
 st.markdown(f"# {PAGE_TITLE}")
 
-# ---------- Sektioner 68%/32% + resultatkort ----------
+# ---------- Sektioner 68%/32% + resultatkort (UTAN nummerfält) ----------
 results = {}
 for block in SECTIONS:
-    left, right = st.columns([0.68, 0.32])  # 68% / 32%
+    left, right = st.columns([0.68, 0.32])
     with left:
         st.header(block["title"])  # H2
         for para in block["text"].split("\n\n"):
             st.write(para)
     with right:
-        score = st.number_input(
-            f"Ange resultat – {block['title']}",
-            min_value=0,
-            max_value=block["max"],
-            value=0,
-            step=1,
-            key=f"score_{block['key']}",
-            help=f"Sätt värdet för denna del (0–{block['max']}).",
-        )
-        results[block["key"]] = int(score)
-        # Resultat-kort likt bilden
+        score = int(preset_scores.get(block["key"], 0))  # visa bara, ingen inmatning
+        results[block["key"]] = score
         st.markdown(
             f"""
             <div class=\"card\">
@@ -123,7 +113,9 @@ for block in SECTIONS:
             """,
             unsafe_allow_html=True,
         )
+        # Grön progressbar (matchar bilden)
         st.progress(score / block["max"] if block["max"] else 0.0)
+        # Orange stapel + summa
         st.markdown(
             f"""
               <div class=\"barbg\"><span class=\"barfill\" style=\"width:{(score/block['max']*100) if block['max'] else 0:.0f}%\"></span></div>
@@ -139,7 +131,6 @@ st.caption("Klicka på knappen nedan för att ladda ner en PDF som speglar allt 
 # ---------- PDF-generering från samma datamodell ----------
 
 def generate_pdf(title: str, sections, results_map):
-    """Skapar en PDF som speglar sidans design och inkluderar resultatruta per sektion."""
     buf = BytesIO()
     pdf = canvas.Canvas(buf, pagesize=A4)
     width, height = A4
@@ -149,7 +140,6 @@ def generate_pdf(title: str, sections, results_map):
     pdf.rect(0, 0, width, height, fill=1, stroke=0)
     pdf.setFillColor(black)
 
-    # Marginaler och typografi
     margin_x = 50
     top_y = height - 60
     h1_size = 22
@@ -157,19 +147,15 @@ def generate_pdf(title: str, sections, results_map):
     body_size = 11
     line_h = 16
 
-    # Dokumenttitel
     pdf.setTitle("självskattning_funktionellt_ledarskap.pdf")
 
-    # H1 (en rad)
     pdf.setFont("Helvetica-Bold", h1_size)
     pdf.drawString(margin_x, top_y, title)
 
-    # Tidsstämpel
     pdf.setFont("Helvetica", 9)
     timestamp = datetime.now().strftime("Genererad: %Y-%m-%d %H:%M")
     pdf.drawRightString(width - margin_x, top_y + 4, timestamp)
 
-    # Startposition
     y = top_y - 28
 
     def ensure_space(needed_px: int):
@@ -183,9 +169,8 @@ def generate_pdf(title: str, sections, results_map):
             pdf.drawString(margin_x, height - 40, title)
             y = height - 60
 
-    # Färger för progressbar i PDF
-    bar_bg = Color(0.91, 0.92, 0.94)  # ljusgrå bakgrund
-    bar_fg = Color(0.96, 0.65, 0.15)  # orange fyllnad
+    bar_bg = Color(0.91, 0.92, 0.94)
+    bar_fg = Color(0.96, 0.65, 0.15)
 
     for block in sections:
         ensure_space(30)
@@ -193,7 +178,6 @@ def generate_pdf(title: str, sections, results_map):
         pdf.drawString(margin_x, y, block["title"])
         y -= h2_size + 6
 
-        # Brödtext
         pdf.setFont("Helvetica", body_size)
         wrapped = []
         for para in block["text"].split("\n\n"):
@@ -204,7 +188,6 @@ def generate_pdf(title: str, sections, results_map):
                 pdf.drawString(margin_x, y, line)
             y -= line_h
 
-        # Resultat-rad (etikett + stapel)
         score_val = int(results_map.get(block["key"], 0))
         max_val = int(block.get("max", 0))
         ensure_space(36)
@@ -226,8 +209,7 @@ def generate_pdf(title: str, sections, results_map):
     buf.seek(0)
     return buf.getvalue()
 
-
-pdf_bytes = generate_pdf(PAGE_TITLE, SECTIONS, results)
+pdf_bytes = generate_pdf(PAGE_TITLE, SECTIONS, preset_scores or results)
 
 st.download_button(
     label="Ladda ner PDF",
