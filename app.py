@@ -28,7 +28,7 @@ st.markdown(
       .stMarkdown h2 {{ font-size: 19px; font-weight: 700; margin: 24px 0 8px 0; }}
       .stMarkdown p, .stMarkdown {{ font-size: 15px; line-height: 21px; }}
       /* Resultat-kort (likt bilden) */
-      .card {{ background: #fff; border-radius: 12px; box-shadow: 0 4px 16px rgba(0,0,0,.08); padding: 14px 16px; border: 1px solid rgba(0,0,0,.12); max-width: 280px; margin: 0 auto; }}
+      .card {{ background: #fff; border-radius: 12px; box-shadow: 0 4px 16px rgba(0,0,0,.08); padding: 14px 16px; border: 1px solid rgba(0,0,0,.12); max-width: 320px; margin: 0 auto; }}
       .card h3 {{ margin: 0 0 8px 0; font-size: 16px; }}
       .score {{ font-size: 40px; font-weight: 800; margin: 2px 0 8px 0; text-align:center; }}
       .summa {{ font-size: 13px; color: #333; margin-top: 8px; }}
@@ -39,6 +39,11 @@ st.markdown(
       .bar-blue {{ background: #3B82F6; }}
       .role-label {{ font-size: 12px; color: #344054; margin: 6px 0 4px 0; display:block; }}
       .right-wrap {{ display:flex; align-items:center; justify-content:center; }}
+
+      /* Kontaktuppgifter */
+      .contact-card {{ background:#fff; border:1px solid rgba(0,0,0,.12); border-radius:12px; padding:12px 14px; box-shadow:0 4px 16px rgba(0,0,0,.06); }}
+      .contact-title {{ font-weight:700; font-size:19px; margin: 6px 0 10px 0; }}
+      .stTextInput>div>div>input {{ background:#F8FAFC; }}
     </style>
     """,
     unsafe_allow_html=True,
@@ -52,10 +57,14 @@ SECTIONS = [
         "title": "Aktivt lyssnande",
         "text": (
             "I dagens arbetsliv har chefens roll förändrats. Medarbetarna sitter ofta på den djupaste kompetensen och "
-            "lösningarna på verksamhetens utmaningar.\n\n"
+            "lösningarna på verksamhetens utmaningar.
+
+"
             "Därför är aktivt lyssnande en av chefens viktigaste färdigheter. Det handlar inte bara om att höra vad som "
             "sägs, utan om att förstå, visa intresse och använda den information du får. När du bjuder in till dialog "
-            "och tar till dig medarbetarnas perspektiv visar du att deras erfarenheter är värdefulla.\n\n"
+            "och tar till dig medarbetarnas perspektiv visar du att deras erfarenheter är värdefulla.
+
+"
             "Genom att agera på det du hör – bekräfta, följa upp och omsätta idéer i handling – stärker du både "
             "engagemang, förtroende och delaktighet."
         ),
@@ -67,10 +76,14 @@ SECTIONS = [
         "text": (
             "Effektiv återkoppling är grunden för både utveckling och motivation. Medarbetare behöver veta vad som "
             "förväntas, hur de ligger till och hur de kan växa. När du som chef tydligt beskriver uppgifter och "
-            "förväntade beteenden skapar du trygghet och fokus i arbetet.\n\n"
+            "förväntade beteenden skapar du trygghet och fokus i arbetet.
+
+"
             "Återkoppling handlar sedan om närvaro och uppföljning – att se, lyssna och ge både beröm och konstruktiv "
             "feedback. Genom att tydligt lyfta fram vad som fungerar och vad som kan förbättras, förstärker du "
-            "önskvärda beteenden och hjälper dina medarbetare att lyckas.\n\n"
+            "önskvärda beteenden och hjälper dina medarbetare att lyckas.
+
+"
             "I svåra situationer blir återkopplingen extra viktig. Att vara lugn, konsekvent och tydlig när det blåser "
             "visar ledarskap på riktigt."
         ),
@@ -82,10 +95,14 @@ SECTIONS = [
         "text": (
             "Målinriktat ledarskap handlar om att ge tydliga ramar – tid, resurser och ansvar – så att medarbetare kan "
             "arbeta effektivt och med trygghet. Tydliga och inspirerande mål skapar riktning och hjälper alla att "
-            "förstå vad som är viktigt just nu.\n\n"
+            "förstå vad som är viktigt just nu.
+
+"
             "Som chef handlar det om att formulera mål som går att tro på, och att tydliggöra hur de ska nås. När du "
             "delegerar ansvar och befogenheter visar du förtroende och skapar engagemang. Målen blir då inte bara "
-            "något att leverera på – utan något att vara delaktig i.\n\n"
+            "något att leverera på – utan något att vara delaktig i.
+
+"
             "Uppföljning är nyckeln. Genom att uppmärksamma framsteg, ge återkoppling och fira resultat förstärker du "
             "både prestation och motivation."
         ),
@@ -94,7 +111,6 @@ SECTIONS = [
 ]
 
 # Resultat per roll och sektion (ingen inmatning – sätt värden här)
-# Exempelvärden: ändra fritt eller koppla till data senare
 preset_scores = {
     "lyssnande": {"chef": 0, "overchef": 0, "medarbetare": 0},
     "aterkoppling": {"chef": 0, "overchef": 0, "medarbetare": 0},
@@ -111,13 +127,40 @@ ROLE_ORDER = ["chef", "overchef", "medarbetare"]
 # ---------- Rendera titel ----------
 st.markdown(f"# {PAGE_TITLE}")
 
+# ---------- Kontaktuppgifter (mellan titel och första sektionen) ----------
+st.markdown("<div class='contact-title'>Kontaktuppgifter</div>", unsafe_allow_html=True)
+with st.container():
+    st.markdown("<div class='contact-card'>", unsafe_allow_html=True)
+    c1, c2, c3, c4, c5 = st.columns([0.15, 0.2, 0.2, 0.2, 0.25])
+    with c1:
+        kontakt_id = st.text_input("Unikt id", value="")
+    with c2:
+        kontakt_namn = st.text_input("Namn", value="")
+    with c3:
+        kontakt_foretag = st.text_input("Företag", value="")
+    with c4:
+        kontakt_tel = st.text_input("Telefon", value="")
+    with c5:
+        kontakt_epost = st.text_input("E-post", value="")
+    st.markdown("</div>", unsafe_allow_html=True)
+
+kontakt = {
+    "Unikt id": kontakt_id,
+    "Namn": kontakt_namn,
+    "Företag": kontakt_foretag,
+    "Telefon": kontakt_tel,
+    "E-post": kontakt_epost,
+}
+
 # ---------- Sektioner 68%/32% + centrerat resultatkort med 3 progressbars ----------
 results = {}
 for block in SECTIONS:
     left, right = st.columns([0.68, 0.32])
     with left:
         st.header(block["title"])  # H2
-        for para in block["text"].split("\n\n"):
+        for para in block["text"].split("
+
+"):
             st.write(para)
     with right:
         scores = preset_scores.get(block["key"], {r: 0 for r in ROLE_ORDER})
@@ -137,15 +180,16 @@ for block in SECTIONS:
             card_html.append(f"<div class='barbg'><span class='barfill {color_class}' style='width:{pct:.0f}%'></span></div>")
             card_html.append(f"<div class='summa'>Summa {val}/{block['max']}</div>")
         card_html.append("</div>")
-        st.markdown("\n".join(card_html), unsafe_allow_html=True)
+        st.markdown("
+".join(card_html), unsafe_allow_html=True)
         st.markdown("</div>", unsafe_allow_html=True)
 
 st.divider()
 st.caption("Klicka på knappen nedan för att ladda ner en PDF som speglar allt innehåll – texter och resultat.")
 
-# ---------- PDF-generering från samma datamodell (inkl. 3 bars/sektion) ----------
+# ---------- PDF-generering från samma datamodell (inkl. 3 bars/sektion + kontakt) ----------
 
-def generate_pdf(title: str, sections, results_map):
+def generate_pdf(title: str, sections, results_map, kontaktinfo: dict):
     buf = BytesIO()
     pdf = canvas.Canvas(buf, pagesize=A4)
     width, height = A4
@@ -173,6 +217,29 @@ def generate_pdf(title: str, sections, results_map):
 
     y = top_y - 28
 
+    # Kontaktuppgifter i PDF (en rad)
+    pdf.setFont("Helvetica-Bold", 10)
+    pdf.drawString(margin_x, y, "Kontaktuppgifter")
+    y -= 14
+    pdf.setFont("Helvetica", 10)
+    row = [
+        f"Unikt id: {kontaktinfo.get('Unikt id','')}",
+        f"Namn: {kontaktinfo.get('Namn','')}",
+        f"Företag: {kontaktinfo.get('Företag','')}",
+        f"Telefon: {kontaktinfo.get('Telefon','')}",
+        f"E-post: {kontaktinfo.get('E-post','')}",
+    ]
+    # Skriv i två rader om det blir för långt
+    text_line = "   |   ".join(row)
+    if len(text_line) > 110:
+        mid = len(row)//2
+        line1 = "   |   ".join(row[:mid])
+        line2 = "   |   ".join(row[mid:])
+        pdf.drawString(margin_x, y, line1); y -= 14
+        pdf.drawString(margin_x, y, line2); y -= 8
+    else:
+        pdf.drawString(margin_x, y, text_line); y -= 14
+
     def ensure_space(needed_px: int):
         nonlocal y
         if y - needed_px < 50:
@@ -197,7 +264,9 @@ def generate_pdf(title: str, sections, results_map):
 
         pdf.setFont("Helvetica", body_size)
         wrapped = []
-        for para in block["text"].split("\n\n"):
+        for para in block["text"].split("
+
+"):
             wrapped += textwrap.wrap(para, width=95) + [""]
         for line in wrapped:
             ensure_space(line_h)
@@ -227,7 +296,7 @@ def generate_pdf(title: str, sections, results_map):
     buf.seek(0)
     return buf.getvalue()
 
-pdf_bytes = generate_pdf(PAGE_TITLE, SECTIONS, preset_scores)
+pdf_bytes = generate_pdf(PAGE_TITLE, SECTIONS, preset_scores, kontakt)
 
 st.download_button(
     label="Ladda ner PDF",
