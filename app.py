@@ -17,11 +17,14 @@ st.set_page_config(
 )
 
 # ---------- Design (äggskalsvit bakgrund) ----------
-EGGSHELL = "#FAF3E0"  # äggskalsvit
+# Välj exakt äggskalsvit via färgväljare (matcha din bild)
+eggshell_hex = st.color_picker("Bakgrundsfärg (äggskalsvit)", value="#FAF3E0")
+
+# Applicera bakgrund i UI
 st.markdown(
     f"""
     <style>
-      .stApp {{ background-color: {EGGSHELL}; }}
+      .stApp {{ background-color: {eggshell_hex}; }}
       .block-container {{ padding-top: 2rem; padding-bottom: 3rem; }}
     </style>
     """,
@@ -80,7 +83,7 @@ def generate_pdf_from_sections(title_lines, sections):
     width, height = A4
 
     # Bakgrund (äggskalsvit)
-    pdf.setFillColor(HexColor(EGGSHELL))
+    pdf.setFillColor(HexColor(eggshell_hex))ex))
     pdf.rect(0, 0, width, height, fill=1, stroke=0)
     pdf.setFillColor(black)  # tillbaka till svart text
 
