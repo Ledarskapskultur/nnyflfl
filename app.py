@@ -1,10 +1,14 @@
 from io import BytesIO
 from datetime import datetime
+import os
 import textwrap
+import requests  # <— för att anropa Power Automate
 
 import streamlit as st
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.lib.colors import HexColor, black, Color
 
 # =============================
@@ -50,6 +54,8 @@ st.markdown(
       .bar-orange {{ background:#F5A524; }}
       .bar-blue {{ background:#3B82F6; }}
       .maxline {{ font-size:13px; color:#374151; margin-top:12px; font-weight:600; }}
+      .ok-badge {{ color:#065f46; background:#d1fae5; padding:2px 8px; border-radius:9999px; font-size:12px; }}
+      .err-badge {{ color:#991b1b; background:#fee2e2; padding:2px 8px; border-radius:9999px; font-size:12px; }}
     </style>
     """,
     unsafe_allow_html=True,
@@ -93,7 +99,7 @@ Uppföljning är nyckeln. Genom att uppmärksamma framsteg, ge återkoppling och
     },
 ]
 
-# Poäng per roll (ingen inmatning i UI – sätt här)
+# Poäng per roll (sätt här)
 preset_scores = {
     "lyssnande":   {"chef": 0, "overchef": 0, "medarbetare": 0},
     "aterkoppling":{"chef": 0, "overchef": 0, "medarbetare": 0},
@@ -101,6 +107,39 @@ preset_scores = {
 }
 
 ROLES_REQUIRE_ID = {"Överordnad chef", "Medarbetare"}
+
+# =============================
+# Helper: anropa Power Automate
+# =============================
+FLOW_URL = os.getenv("FLOW_URL", "").strip()
+
+def send_to_power_automate(payload: dict) -> tuple[bool, str | None, str | None]:
+    """
+    Skickar JSON till Power Automate-flödet (HTTP-begäran tas emot).
+    Returnerar (ok, unikt_id, felmeddelande).
+    Förväntar att flödet returnerar JSON som t.ex. {"uniktId":"ABC123"} eller {"id":"ABC123"}.
+    """
+    if not FLOW_URL:
+        return False, None, "FLOW_URL saknas (sätt miljövariabeln)."
+    try:
+        resp = requests.post(FLOW_URL, json=payload, timeout=15)
+        if resp.status_code >= 200 and resp.status_code < 300:
+            try:
+                data = resp.json() if resp.content else {}
+            except Exception:
+                data = {}
+            unikt_id = (
+                data.get("uniktId")
+                or data.get("unikt_id")
+                or data.get("id")
+                or data.get("uniqueId")
+                or data.get("UniqueId")
+            )
+            return True, unikt_id, None
+        else:
+            return False, None, f"HTTP {resp.status_code}: {resp.text[:300]}"
+    except Exception as e:
+        return False, None, str(e)
 
 # =============================
 # LANDNINGSSIDA
@@ -142,21 +181,43 @@ def render_landing():
             st.warning("Fyll i minst Namn och E-post för att fortsätta.")
             return
 
+        # Spara grunddata i session
         st.session_state["kontakt"] = {
             "Namn": namn.strip(),
             "Företag": foretag.strip(),
             "Telefon": telefon.strip(),
             "E-post": epost.strip(),
             "Funktion": funktion,
-            "Unikt id": default.get("Unikt id",""),
+            "Unikt id": default.get("Unikt id", ""),
         }
 
-        # Styr routing: Överordnad/Medarbetare -> sida för Unikt id, annars direkt bedömning
-        st.session_state["page"] = "id_page" if funktion in ROLES_REQUIRE_ID else "assessment"
+        if funktion == "Chef":
+            # Skicka till Power Automate → skriv till SharePoint + få tillbaka Unikt id
+            payload = {
+                "namn": namn.strip(),
+                "foretag": foretag.strip(),
+                "telefon": telefon.strip(),
+                "epost": epost.strip(),
+                "funktion": funktion,
+                "timestamp": datetime.utcnow().isoformat() + "Z",
+            }
+            ok, unikt_id, err = send_to_power_automate(payload)
+            if ok:
+                if unikt_id:
+                    st.session_state["kontakt"]["Unikt id"] = str(unikt_id)
+                    st.success(f"Post skapad i SharePoint. <span class='ok-badge'>Unikt id: {unikt_id}</span>", icon="✅")
+                else:
+                    st.info("Post skapad i SharePoint, men flödet returnerade inget Unikt id.", icon="ℹ️")
+                st.session_state["page"] = "assessment"
+            else:
+                st.error(f"Kunde inte skicka till Power Automate: {err}", icon="🚫")
+                # Låt användaren stanna kvar på landningssidan vid fel
+        else:
+            # Roller som kräver att ange Unikt id manuellt
+            st.session_state["page"] = "id_page"
 
 # =============================
-# NY SIDA: ANGE UNIKT ID
-# Gäller bara för Överordnad chef och Medarbetare
+# NY SIDA: ANGE UNIKT ID (Överordnad/Medarbetare)
 # =============================
 def render_id_page():
     st.markdown("## Ange unikt id")
@@ -168,15 +229,15 @@ def render_id_page():
         with c1:
             unikt_id = st.text_input("Unikt id", value=base.get("Unikt id",""))
         with c2:
-            st.write("")  # luft
+            st.write("")
             st.write(f"**Funktion:** {base.get('Funktion','')}")
+
         ok = st.form_submit_button("Fortsätt till självskattning", type="primary")
 
     if ok:
         if not unikt_id.strip():
             st.warning("Ange ett unikt id för att fortsätta.")
             return
-        # spara id och vidare
         st.session_state["kontakt"]["Unikt id"] = unikt_id.strip()
         st.session_state["page"] = "assessment"
 
@@ -189,7 +250,7 @@ def render_id_page():
 def render_assessment():
     st.markdown(f"# {PAGE_TITLE}")
 
-    # Kontakt (förifyll från tidigare steg, redigerbar)
+    # Kontakt (redigerbar)
     st.markdown("<div class='contact-title'>Kontaktuppgifter</div>", unsafe_allow_html=True)
     with st.container():
         st.markdown("<div class='card contact-card'>", unsafe_allow_html=True)
@@ -208,8 +269,7 @@ def render_assessment():
                 ["Chef", "Överordnad chef", "Medarbetare"],
                 index=["Chef", "Överordnad chef", "Medarbetare"].index(base.get("Funktion","Chef")),
             )
-            # Visa Unikt id endast för rollerna som kräver det
-            visa_id = kontakt_funktion in ROLES_REQUIRE_ID
+            visa_id = kontakt_funktion in ROLES_REQUIRE_ID or bool(base.get("Unikt id"))
             kontakt_unikt_id = st.text_input("Unikt id", value=base.get("Unikt id",""), disabled=not visa_id)
 
         st.session_state["kontakt"] = {
@@ -224,12 +284,7 @@ def render_assessment():
 
     kontakt = st.session_state["kontakt"]
 
-    # Validering i detta steg: om roll kräver unikt id – måste vara ifyllt
-    requires_id_and_missing = (kontakt["Funktion"] in ROLES_REQUIRE_ID) and (not kontakt["Unikt id"])
-    if requires_id_and_missing:
-        st.warning("Unikt id krävs för vald funktion.")
-
-    # Sektioner 68/32 + resultatkort i önskat format
+    # Sektioner 68/32 + resultatkort
     for block in SECTIONS:
         left, right = st.columns([0.68, 0.32])
         with left:
@@ -259,7 +314,7 @@ def render_assessment():
     st.divider()
     st.caption("Ladda ner en PDF som speglar allt innehåll – kontakt, texter och resultat.")
 
-    # ----- PDF (matchar UI-format) -----
+    # ----- PDF (matchar UI) -----
     def generate_pdf(title: str, sections, results_map, kontaktinfo: dict) -> bytes:
         buf = BytesIO()
         pdf = canvas.Canvas(buf, pagesize=A4)
@@ -277,7 +332,7 @@ def render_assessment():
         pdf.setFont("Helvetica", 9); pdf.drawRightString(width-margin_x, top_y+4, datetime.now().strftime("Genererad: %Y-%m-%d %H:%M"))
         y = top_y - 28
 
-        # Kontakt i PDF (inkl. Unikt id för de roller som kräver det)
+        # Kontakt i PDF
         pdf.setFont("Helvetica-Bold", 10); pdf.drawString(margin_x, y, "Kontaktuppgifter"); y -= 14
         pdf.setFont("Helvetica", 10)
         row = [
@@ -287,8 +342,8 @@ def render_assessment():
             f"E-post: {kontaktinfo.get('E-post','')}",
             f"Funktion: {kontaktinfo.get('Funktion','')}",
         ]
-        if kontaktinfo.get("Funktion") in ROLES_REQUIRE_ID:
-            row.append(f"Unikt id: {kontaktinfo.get('Unikt id','')}")
+        if kontaktinfo.get("Unikt id"):
+            row.append(f"Unikt id: {kontaktinfo.get('Unikt id')}")
         line = "   |   ".join(row)
         if len(line) > 110:
             mid = len(row)//2
@@ -340,7 +395,6 @@ def render_assessment():
         pdf.showPage(); pdf.save(); buf.seek(0)
         return buf.getvalue()
 
-    pdf_disabled = requires_id_and_missing
     pdf_bytes = generate_pdf(PAGE_TITLE, SECTIONS, preset_scores, kontakt)
     st.download_button(
         "Ladda ner PDF",
@@ -348,7 +402,6 @@ def render_assessment():
         file_name="självskattning_funktionellt_ledarskap.pdf",
         mime="application/pdf",
         type="primary",
-        disabled=pdf_disabled,
     )
 
     if st.button("◀ Tillbaka till startsidan"):
