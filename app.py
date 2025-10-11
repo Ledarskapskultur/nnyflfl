@@ -17,7 +17,7 @@ st.set_page_config(
 )
 
 # ---------- Design (äggskalsvit bakgrund & typografi) ----------
-eggshell_hex = "#FAF7F0"  # fast äggskalsvit
+eggshell_hex = "#FAF7F0"
 st.markdown(
     f"""
     <style>
@@ -27,21 +27,22 @@ st.markdown(
       .stMarkdown h1 {{ font-size: 29px; font-weight: 700; margin: 0 0 6px 0; }}
       .stMarkdown h2 {{ font-size: 19px; font-weight: 700; margin: 24px 0 8px 0; }}
       .stMarkdown p, .stMarkdown {{ font-size: 15px; line-height: 21px; }}
-      .card {{ background: #fff; border-radius: 12px; box-shadow: 0 4px 16px rgba(0,0,0,.08); padding: 14px 16px; border: 1px solid rgba(0,0,0,.12); max-width: 320px; margin: 0 auto; }}
-      .card h3 {{ margin: 0 0 8px 0; font-size: 16px; }}
-      .score {{ font-size: 40px; font-weight: 800; margin: 2px 0 8px 0; text-align:center; }}
-      .summa {{ font-size: 13px; color: #333; margin-top: 8px; }}
-      .barbg {{ width: 100%; height: 10px; background: #E9ECEF; border-radius: 6px; overflow: hidden; }}
-      .barfill {{ height: 10px; display: block; }}
-      .bar-green {{ background: #4CAF50; }}
-      .bar-orange {{ background: #F5A524; }}
-      .bar-blue {{ background: #3B82F6; }}
-      .role-label {{ font-size: 12px; color: #344054; margin: 6px 0 4px 0; display:block; }}
+      /* Resultat-kort */
+      .card {{ background:#fff; border-radius:12px; box-shadow:0 4px 16px rgba(0,0,0,.08);
+               padding:14px 16px; border:1px solid rgba(0,0,0,.12); max-width:320px; margin:0 auto; }}
+      .card h3 {{ margin:0 0 8px 0; font-size:16px; }}
+      .summa {{ font-size:13px; color:#333; margin-top:8px; }}
+      .barbg {{ width:100%; height:10px; background:#E9ECEF; border-radius:6px; overflow:hidden; }}
+      .barfill {{ height:10px; display:block; }}
+      .bar-green {{ background:#4CAF50; }}
+      .bar-orange {{ background:#F5A524; }}
+      .bar-blue {{ background:#3B82F6; }}
+      .role-label {{ font-size:12px; color:#344054; margin:6px 0 4px 0; display:block; }}
       .right-wrap {{ display:flex; align-items:center; justify-content:center; }}
-
       /* Kontaktuppgifter */
-      .contact-card {{ background:#fff; border:1px solid rgba(0,0,0,.12); border-radius:12px; padding:12px 14px; box-shadow:0 4px 16px rgba(0,0,0,.06); }}
-      .contact-title {{ font-weight:700; font-size:19px; margin: 6px 0 10px 0; }}
+      .contact-card {{ background:#fff; border:1px solid rgba(0,0,0,.12); border-radius:12px; padding:12px 14px;
+                       box-shadow:0 4px 16px rgba(0,0,0,.06); }}
+      .contact-title {{ font-weight:700; font-size:19px; margin:6px 0 10px 0; }}
       .stTextInput>div>div>input {{ background:#F8FAFC; }}
     </style>
     """,
@@ -83,7 +84,7 @@ Uppföljning är nyckeln. Genom att uppmärksamma framsteg, ge återkoppling och
     },
 ]
 
-# Resultat per roll (sätt värden här om du vill visa något annat än 0)
+# Resultat per roll och sektion (sätt dina värden här)
 preset_scores = {
     "lyssnande":   {"chef": 0, "overchef": 0, "medarbetare": 0},
     "aterkoppling":{"chef": 0, "overchef": 0, "medarbetare": 0},
@@ -91,7 +92,7 @@ preset_scores = {
 }
 
 ROLE_LABELS = {"chef": "Chef", "overchef": "Överordnad chef", "medarbetare": "Medarbetare"}
-ROLE_ORDER = ["chef", "overchef", "medarbetare"]
+ROLE_ORDER  = ["chef", "overchef", "medarbetare"]
 
 # ---------- Rendera titel ----------
 st.markdown(f"# {PAGE_TITLE}")
@@ -101,11 +102,11 @@ st.markdown("<div class='contact-title'>Kontaktuppgifter</div>", unsafe_allow_ht
 with st.container():
     st.markdown("<div class='contact-card'>", unsafe_allow_html=True)
     c1, c2, c3, c4, c5 = st.columns([0.15, 0.2, 0.2, 0.2, 0.25])
-    with c1: kontakt_id = st.text_input("Unikt id", value="")
-    with c2: kontakt_namn = st.text_input("Namn", value="")
-    with c3: kontakt_foretag = st.text_input("Företag", value="")
-    with c4: kontakt_tel = st.text_input("Telefon", value="")
-    with c5: kontakt_epost = st.text_input("E-post", value="")
+    with c1: kontakt_id     = st.text_input("Unikt id", value="")
+    with c2: kontakt_namn   = st.text_input("Namn", value="")
+    with c3: kontakt_foretag= st.text_input("Företag", value="")
+    with c4: kontakt_tel    = st.text_input("Telefon", value="")
+    with c5: kontakt_epost  = st.text_input("E-post", value="")
     st.markdown("</div>", unsafe_allow_html=True)
 
 kontakt = {
@@ -116,7 +117,7 @@ kontakt = {
     "E-post": kontakt_epost,
 }
 
-# ---------- Sektioner 68%/32% + centrerat resultatkort med 3 progressbars ----------
+# ---------- Sektioner 68%/32% + resultatkort (3 bars) ----------
 results = {}
 for block in SECTIONS:
     left, right = st.columns([0.68, 0.32])
@@ -129,44 +130,48 @@ for block in SECTIONS:
         results[block["key"]] = scores
 
         st.markdown("<div class='right-wrap'>", unsafe_allow_html=True)
-        card_html = [f"<div class='card'><h3>{block['title']}</h3>"]
+        html = [f"<div class='card'><h3>{block['title']}</h3>"]
+        # tre progressbars
         for role in ROLE_ORDER:
             val = int(scores.get(role, 0))
             pct = 0 if block["max"] == 0 else (val / block["max"]) * 100
-            color_class = "bar-green" if role == "chef" else ("bar-blue" if role == "medarbetare" else "bar-orange")
-            card_html.append(f"<span class='role-label'>{ROLE_LABELS[role]}</span>")
-            card_html.append(f"<div class='barbg'><span class='barfill {color_class}' style='width:{pct:.0f}%'></span></div>")
-            card_html.append(f"<div class='summa'>Summa {val}/{block['max']}</div>")
-        card_html.append("</div>")
-        st.markdown("\n".join(card_html), unsafe_allow_html=True)
+            color = "bar-green" if role == "chef" else ("bar-orange" if role == "overchef" else "bar-blue")
+            html.append(f"<span class='role-label'>{ROLE_LABELS[role]}</span>")
+            html.append(f"<div class='barbg'><span class='barfill {color}' style='width:{pct:.0f}%'></span></div>")
+        # EN sammanfattande rad per del
+        html.append(
+            f"<div class='summa'>"
+            f"Summa: Chef {scores.get('chef',0)}/{block['max']} · "
+            f"Överordnad chef {scores.get('overchef',0)}/{block['max']} · "
+            f"Medarbetare {scores.get('medarbetare',0)}/{block['max']}"
+            f"</div>"
+        )
+        html.append("</div>")
+        st.markdown("\n".join(html), unsafe_allow_html=True)
         st.markdown("</div>", unsafe_allow_html=True)
 
 st.divider()
-st.caption("Klicka på knappen nedan för att ladda ner en PDF som speglar allt innehåll – texter och resultat.")
+st.caption("Klicka på knappen nedan för att ladda ner en PDF som speglar allt innehåll – kontakt, texter och resultat.")
 
-# ---------- PDF-generering ----------
-def generate_pdf(title: str, sections, results_map, kontaktinfo: dict):
+# ---------- PDF (matchar UI: kontakt + tre bars + EN summa per del) ----------
+def generate_pdf(title: str, sections, results_map, kontaktinfo: dict) -> bytes:
     buf = BytesIO()
     pdf = canvas.Canvas(buf, pagesize=A4)
     width, height = A4
 
-    pdf.setFillColor(HexColor(eggshell_hex)); pdf.rect(0, 0, width, height, fill=1, stroke=0)
+    # Bakgrund
+    pdf.setFillColor(HexColor(eggshell_hex))
+    pdf.rect(0, 0, width, height, fill=1, stroke=0)
     pdf.setFillColor(black)
 
     margin_x = 50
     top_y = height - 60
-    h1_size = 22
-    h2_size = 14
-    body_size = 11
-    line_h = 16
+    h1, h2, body, line_h = 22, 14, 11, 16
 
     pdf.setTitle("självskattning_funktionellt_ledarskap.pdf")
-
-    pdf.setFont("Helvetica-Bold", h1_size); pdf.drawString(margin_x, top_y, title)
+    pdf.setFont("Helvetica-Bold", h1); pdf.drawString(margin_x, top_y, title)
     pdf.setFont("Helvetica", 9)
-    timestamp = datetime.now().strftime("Genererad: %Y-%m-%d %H:%M")
-    pdf.drawRightString(width - margin_x, top_y + 4, timestamp)
-
+    pdf.drawRightString(width - margin_x, top_y + 4, datetime.now().strftime("Genererad: %Y-%m-%d %H:%M"))
     y = top_y - 28
 
     # Kontaktuppgifter
@@ -181,55 +186,62 @@ def generate_pdf(title: str, sections, results_map, kontaktinfo: dict):
     ]
     text_line = "   |   ".join(row)
     if len(text_line) > 110:
-        mid = len(row) // 2
-        line1 = "   |   ".join(row[:mid]); line2 = "   |   ".join(row[mid:])
-        pdf.drawString(margin_x, y, line1); y -= 14
-        pdf.drawString(margin_x, y, line2); y -= 8
+        mid = len(row)//2
+        pdf.drawString(margin_x, y, "   |   ".join(row[:mid])); y -= 14
+        pdf.drawString(margin_x, y, "   |   ".join(row[mid:])); y -= 8
     else:
         pdf.drawString(margin_x, y, text_line); y -= 14
 
-    def ensure_space(needed_px: int):
+    def ensure_space(need:int):
         nonlocal y
-        if y - needed_px < 50:
+        if y - need < 50:
             pdf.showPage()
-            pdf.setFillColor(HexColor(eggshell_hex)); pdf.rect(0, 0, width, height, fill=1, stroke=0)
-            pdf.setFillColor(black); pdf.setFont("Helvetica", 9)
-            pdf.drawString(margin_x, height - 40, title)
+            pdf.setFillColor(HexColor(eggshell_hex)); pdf.rect(0,0,width,height,fill=1,stroke=0)
+            pdf.setFillColor(black); pdf.setFont("Helvetica",9)
+            pdf.drawString(margin_x, height-40, title)
             y = height - 60
 
     bar_bg = Color(0.91, 0.92, 0.94)
-    bar_green = Color(0.30, 0.69, 0.31)
-    bar_orange = Color(0.96, 0.65, 0.15)
-    bar_blue = Color(0.23, 0.51, 0.96)
+    bar_green  = Color(0.30, 0.69, 0.31)  # Chef
+    bar_orange = Color(0.96, 0.65, 0.15)  # Överordnad chef
+    bar_blue   = Color(0.23, 0.51, 0.96)  # Medarbetare
 
     for block in sections:
         ensure_space(30)
-        pdf.setFont("Helvetica-Bold", h2_size); pdf.drawString(margin_x, y, block["title"]); y -= h2_size + 6
+        pdf.setFont("Helvetica-Bold", h2); pdf.drawString(margin_x, y, block["title"]); y -= h2 + 6
 
-        pdf.setFont("Helvetica", body_size)
-        wrapped = []
-        for para in block["text"].split("\n\n"):
-            wrapped += textwrap.wrap(para, width=95) + [""]
+        pdf.setFont("Helvetica", body)
+        wrapped=[]
+        for p in block["text"].split("\n\n"):
+            wrapped += textwrap.wrap(p, width=95) + [""]
         for line in wrapped:
             ensure_space(line_h)
-            if line:
-                pdf.drawString(margin_x, y, line)
+            if line: pdf.drawString(margin_x, y, line)
             y -= line_h
 
-        # Tre progressbars (Chef, Överordnad chef, Medarbetare)
+        # tre bars
         role_seq = [("chef", bar_green), ("overchef", bar_orange), ("medarbetare", bar_blue)]
         for role, color in role_seq:
             val = int(results_map.get(block["key"], {}).get(role, 0))
-            max_val = int(block.get("max", 0))
+            max_val = int(block["max"])
             ensure_space(26)
             pdf.setFont("Helvetica", 10)
-            pdf.drawString(margin_x, y, f"{ROLE_LABELS[role]} – Summa {val}/{max_val}")
+            pdf.drawString(margin_x, y, f"{ROLE_LABELS[role]}")
             y -= 12
-            bar_w = width - margin_x * 2; bar_h = 8
+            bar_w, bar_h = width - 2*margin_x, 8
             pdf.setFillColor(bar_bg); pdf.rect(margin_x, y, bar_w, bar_h, fill=1, stroke=0)
-            fill_w = 0 if max_val == 0 else bar_w * (val / max_val)
+            fill_w = 0 if max_val==0 else bar_w * (val/max_val)
             pdf.setFillColor(color); pdf.rect(margin_x, y, fill_w, bar_h, fill=1, stroke=0)
             pdf.setFillColor(black); y -= 14
+
+        # EN sammanfattande rad per del
+        s = results_map.get(block["key"], {})
+        pdf.setFont("Helvetica-Bold", 10)
+        pdf.drawString(
+            margin_x, y,
+            f"Summa: Chef {s.get('chef',0)}/{block['max']} · Överordnad chef {s.get('overchef',0)}/{block['max']} · Medarbetare {s.get('medarbetare',0)}/{block['max']}"
+        )
+        y -= 18
 
     pdf.showPage(); pdf.save(); buf.seek(0)
     return buf.getvalue()
