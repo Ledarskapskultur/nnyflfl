@@ -173,7 +173,9 @@ INSTR_CHEF = (
     "**Chef**\n\n"
     "Syftet med frågorna nedan är att du ska beskriva hur du kommunicerar med dina medarbetare i frågor som rör deras arbete. "
     "\n\n"
-    "Använd följande svarsskala: **1 = Aldrig, 2 = Nästan aldrig, 3 = Sällan, 4 = Ibland, 5 = Ofta, 6 = Nästan alltid, 7 = Alltid**. "
+    "Använd följande svarsskala:"
+    "\n\n"
+    "**1 = Aldrig, 2 = Nästan aldrig, 3 = Sällan, 4 = Ibland, 5 = Ofta, 6 = Nästan alltid, 7 = Alltid**. "
     "\n\n"
     "Ange hur ofta **du** gör följande:"
 )
@@ -181,7 +183,9 @@ INSTR_EMP = (
     "**Medarbetare**\n\n"
     "Syftet med frågorna nedan är att du ska beskriva hur din chef kommunicerar med dig i frågor som rör ditt arbete. "
     "\n\n"
-    "Använd följande svarsskala: **1 = Aldrig, 2 = Nästan aldrig, 3 = Sällan, 4 = Ibland, 5 = Ofta, 6 = Nästan alltid, 7 = Alltid**. "
+    "Använd följande svarsskala:"
+    "\n\n"
+    "**1 = Aldrig, 2 = Nästan aldrig, 3 = Sällan, 4 = Ibland, 5 = Ofta, 6 = Nästan alltid, 7 = Alltid**. "
     "\n\n"
     "Ange hur ofta **din chef** gör följande:"
 )
