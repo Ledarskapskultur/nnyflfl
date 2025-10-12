@@ -1,3 +1,4 @@
+# app.py
 from io import BytesIO
 from datetime import datetime
 import os, textwrap, string, secrets, requests
@@ -13,7 +14,6 @@ from reportlab.lib.colors import HexColor, black, Color
 st.set_page_config(page_title="Självskattning – Funktionellt ledarskap", page_icon="📄", layout="centered")
 
 EGGSHELL = "#FAF7F0"
-
 st.markdown(
     f"""
     <style>
@@ -51,10 +51,10 @@ st.markdown(
 )
 
 # =============================
-# Power Automate (valfritt)
+# Power Automate (valfritt; gör inget om URL ej satt)
 # =============================
-FLOW_LOOKUP_URL = os.getenv("FLOW_LOOKUP_URL", "").strip()  # {"action":"lookup","uniqueId": "..."} -> {found, name, company, email}
-FLOW_LOG_URL    = os.getenv("FLOW_LOG_URL", "").strip()     # {"action":"log","uniqueId","firstName","role","timestamp"}
+FLOW_LOOKUP_URL = os.getenv("FLOW_LOOKUP_URL", "").strip()
+FLOW_LOG_URL    = os.getenv("FLOW_LOG_URL", "").strip()
 
 def safe_post(url: str, payload: dict):
     if not url:
@@ -71,10 +71,9 @@ def safe_post(url: str, payload: dict):
         return False, None, str(e)
 
 # =============================
-# Innehåll & frågor
+# Texter & sektioner för resultatdelen
 # =============================
 PAGE_TITLE = "Självskattning – Funktionellt ledarskap"
-
 SECTIONS = [
     {
         "key": "lyssnande",
@@ -108,7 +107,11 @@ Uppföljning är nyckeln. Genom att uppmärksamma framsteg, ge återkoppling och
     },
 ]
 
-QUESTIONS = [
+# =============================
+# Frågor (20 st) och instruktioner per roll
+# =============================
+# Chef – tidigare frågor (oförändrat)
+CHEF_QUESTIONS = [
     "Efterfrågar deras förslag när det gäller hur arbetet kan förbättras",
     "Efterfrågar deras idéer när det gäller planering av arbetet",
     "Uppmuntrar dem att uttrycka eventuella farhågor när det gäller arbetet",
@@ -131,13 +134,41 @@ QUESTIONS = [
     "Ser till att dina medarbetares arbete samordnas",
 ]
 
+# Medarbetare – använder samma 20 teman men riktat mot chefens beteende (som tidigare)
+EMP_QUESTIONS = CHEF_QUESTIONS
+
+# Överordnad chef – dina nya frågor från bilden
+OVER_QUESTIONS = [
+    "Efterfrågar andras förslag när det gäller hur hens verksamhet kan förbättras",
+    "Efterfrågar andras idéer när det gäller planering av hens verksamhet",
+    "Uppmuntrar andra att uttrycka eventuella farhågor när det gäller hens verksamhet",
+    "Uppmuntrar andra att komma med förbättringsförslag för hens verksamhet",
+    "Uppmuntrar andra att uttrycka idéer och förslag",
+    "Använder sig av andras förslag när hen fattar beslut som berör dem",
+    "Överväger andras idéer även när hen inte håller med om dem",
+    "Talar om sin verksamhet som meningsfull och viktig",
+    "Formulerar inspirerande målsättningar",
+    "Beskriver viktiga värderingar och ideal",
+    "Pratar på ett inspirerande sätt",
+    "Beskriver sin verksamhets mål",
+    "Är tydlig med sin verksamhets effektivitet",
+    "Tillhandahåller relevant information",
+    "Använder fakta och logik",
+    "Beskriver vem som är ansvarig för vad",
+    "Beskriver tidsplaner för de arbetsuppgifter som ska göras",
+    "Kommunicerar verksamhetens målsättningar på ett tydligt sätt",
+    "Är tydlig med vad hen förväntar sig av andra",
+    "Ser till att arbetet samordnas",
+]
+
+# Indexgrupperna (gäller alla tre enkäterna)
 IDX_MAP = {
     "lyssnande": list(range(0, 7)),
     "aterkoppling": list(range(7, 15)),
     "malinriktning": list(range(15, 20)),
 }
 
-# Instruktionstexter (grafisk ruta ovanför enkäten)
+# Instruktionsrutor
 INSTR_CHEF = (
     "**Chef**\n\n"
     "Syftet med frågorna nedan är att du ska beskriva hur du kommunicerar med dina medarbetare i frågor som rör deras arbete. "
@@ -145,10 +176,16 @@ INSTR_CHEF = (
     "Ange hur ofta **du** gör följande:"
 )
 INSTR_EMP = (
-    "**Medarbetare/Överordnad chef**\n\n"
+    "**Medarbetare**\n\n"
     "Syftet med frågorna nedan är att du ska beskriva hur din chef kommunicerar med dig i frågor som rör ditt arbete. "
     "Använd följande svarsskala: **1 = Aldrig, 2 = Nästan aldrig, 3 = Sällan, 4 = Ibland, 5 = Ofta, 6 = Nästan alltid, 7 = Alltid**. "
     "Ange hur ofta **din chef** gör följande:"
+)
+INSTR_OVER = (
+    "**Överordnad chef**\n\n"
+    "Syftet med frågorna nedan är att du ska beskriva hur din underställda chef kommunicerar i arbetsrelaterade frågor. "
+    "Använd följande svarsskala: **1 = Aldrig, 2 = Nästan aldrig, 3 = Sällan, 4 = Ibland, 5 = Ofta, 6 = Nästan alltid, 7 = Alltid**. "
+    "Ange hur ofta **din underställda chef** gör följande:"
 )
 
 # =============================
@@ -187,13 +224,13 @@ def pdf_from_page(title: str, sections, results_map, kontaktinfo: dict) -> bytes
         f"E-post: {kontaktinfo.get('E-post','')}",
         f"Funktion: {kontaktinfo.get('Funktion','')}",
     ]
-    line = "   |   ".join(row)
-    if len(line) > 110:
+    txt = "   |   ".join(row)
+    if len(txt) > 110:
         mid = len(row)//2
         pdf.drawString(margin, y, "   |   ".join(row[:mid])); y -= 14
         pdf.drawString(margin, y, "   |   ".join(row[mid:])); y -= 8
     else:
-        pdf.drawString(margin, y, line); y -= 14
+        pdf.drawString(margin, y, txt); y -= 14
 
     def ensure(n):
         nonlocal y
@@ -218,7 +255,6 @@ def pdf_from_page(title: str, sections, results_map, kontaktinfo: dict) -> bytes
             bw, bh = w-2*margin, 8; pdf.setFillColor(bg); pdf.rect(margin, y, bw, bh, fill=1, stroke=0)
             fw = 0 if mx==0 else bw*(val/mx); pdf.setFillColor(col); pdf.rect(margin, y, fw, bh, fill=1, stroke=0)
             pdf.setFillColor(black); y -= 14
-
         pdf.setFont("Helvetica-Bold",10); pdf.drawString(margin, y, f"Max: {mx} poäng"); y -= 18
 
     pdf.showPage(); pdf.save(); buf.seek(0); return buf.getvalue()
@@ -259,13 +295,12 @@ def render_landing():
             "E-post": mail.strip(), "Funktion": fun, "Unikt id": unikt_id
         }
         if fun == "Chef":
-            st.session_state["chef_answers"] = [None] * len(QUESTIONS)
+            st.session_state["chef_answers"] = [None] * len(CHEF_QUESTIONS)
             st.session_state["survey_page"] = 0
             st.session_state["page"] = "chef_survey"
-            do_rerun()
         else:
             st.session_state["page"] = "id_page"
-            do_rerun()
+        do_rerun()
 
 def render_id_page():
     st.markdown("## Ange uppgifter för chefens självskattning")
@@ -286,7 +321,7 @@ def render_id_page():
             st.warning("Fyll i både **Chefens förnamn** och **Unikt id**.")
             return
 
-        # (valfritt) logga deltagande
+        # valfritt logg/lookup
         _ = safe_post(FLOW_LOG_URL, {
             "action": "log",
             "uniqueId": uid.strip(),
@@ -294,53 +329,47 @@ def render_id_page():
             "role": "overchef" if base.get("Funktion") == "Överordnad chef" else "medarbetare",
             "timestamp": datetime.utcnow().isoformat() + "Z",
         })
-
-        # (valfritt) hämta chefens namn via id
-        looked_up = {}
         ok_lu, data_lu, _err = safe_post(FLOW_LOOKUP_URL, {"action":"lookup","uniqueId": uid.strip()})
         if ok_lu and data_lu and data_lu.get("found"):
-            looked_up = data_lu
+            if data_lu.get("name"):    st.session_state["kontakt"]["Namn"] = data_lu["name"]
+            if data_lu.get("company"): st.session_state["kontakt"]["Företag"] = data_lu["company"]
+            if data_lu.get("email"):   st.session_state["kontakt"]["E-post"] = data_lu["email"]
 
         st.session_state["kontakt"]["Unikt id"] = uid.strip()
         st.session_state["kontakt"]["Chefens förnamn"] = chef_first.strip()
-        if looked_up.get("name"):
-            st.session_state["kontakt"]["Namn"] = looked_up["name"]
-        if looked_up.get("company"):
-            st.session_state["kontakt"]["Företag"] = looked_up["company"]
-        if looked_up.get("email"):
-            st.session_state["kontakt"]["E-post"] = looked_up["email"]
 
-        # starta rätt enkät (för deltagare = överchef/medarbetare)
-        st.session_state["other_answers"] = [None] * len(QUESTIONS)
-        st.session_state["other_page"] = 0
-        st.session_state["page"] = "other_survey"
+        # starta rätt enkät
+        if base.get("Funktion") == "Medarbetare":
+            st.session_state["other_answers"] = [None] * len(EMP_QUESTIONS)
+            st.session_state["other_page"] = 0
+            st.session_state["page"] = "other_survey"
+        else:
+            st.session_state["over_answers"] = [None] * len(OVER_QUESTIONS)
+            st.session_state["over_page"] = 0
+            st.session_state["page"] = "over_survey"
         do_rerun()
 
     if st.button("◀ Tillbaka"):
         st.session_state["page"] = "landing"
         do_rerun()
 
-# --- gemensamt enkät-render för 4 sidor × 5 frågor ---
-def render_survey_core(title: str, instruction_md: str, answers_key: str, page_key: str):
+# --- gemensamt render för 4×5 sidor ---
+def render_survey_core(title: str, instruction_md: str, questions: list[str], answers_key: str, page_key: str):
     st.markdown(f"## {title}")
-
-    # Instruktionsruta
     st.markdown(f"<div class='note'>{instruction_md}</div>", unsafe_allow_html=True)
-
-    # liten caption
     st.caption("Svara på varje påstående på en skala 1–7. Du måste besvara alla frågor på sidan för att gå vidare.")
 
     if st.session_state.get("scroll_to_top"):
         st.markdown("<script>window.scrollTo(0,0);</script>", unsafe_allow_html=True)
         st.session_state["scroll_to_top"] = False
 
-    ans = st.session_state.get(answers_key, [None]*len(QUESTIONS))
+    ans = st.session_state.get(answers_key, [None]*len(questions))
     page = st.session_state.get(page_key, 0)
 
     per_page = 5
     start_idx = page * per_page
     end_idx = start_idx + per_page
-    current_slice = list(enumerate(QUESTIONS[start_idx:end_idx], start=start_idx+1))
+    current_slice = list(enumerate(questions[start_idx:end_idx], start=start_idx+1))
 
     for i, q in current_slice:
         st.markdown(f"**{i}. {q}**")
@@ -368,63 +397,55 @@ def render_survey_core(title: str, instruction_md: str, answers_key: str, page_k
                 st.session_state["scroll_to_top"] = True
                 do_rerun()
         else:
-            # sista sidan, spara och vidare
             if st.button("Skicka självskattning", type="primary", disabled=not all_filled):
                 st.session_state["page"] = "assessment"
                 do_rerun()
 
 def render_chef_survey():
-    render_survey_core(
-        title="Självskattning (Chef)",
-        instruction_md=INSTR_CHEF,
-        answers_key="chef_answers",
-        page_key="survey_page",
-    )
+    render_survey_core("Självskattning (Chef)", INSTR_CHEF, CHEF_QUESTIONS, "chef_answers", "survey_page")
 
 def render_other_survey():
-    # Titel sätts baserat på roll
-    role = st.session_state.get("kontakt", {}).get("Funktion", "Medarbetare")
-    title = "Självskattning (Medarbetare)" if role == "Medarbetare" else "Självskattning (Överordnad chef)"
-    render_survey_core(
-        title=title,
-        instruction_md=INSTR_EMP,
-        answers_key="other_answers",
-        page_key="other_page",
-    )
+    render_survey_core("Självskattning (Medarbetare)", INSTR_EMP, EMP_QUESTIONS, "other_answers", "other_page")
+
+def render_over_survey():
+    render_survey_core("Självskattning (Överordnad chef)", INSTR_OVER, OVER_QUESTIONS, "over_answers", "over_page")
 
 def render_assessment():
-    # summera in eventuella svar från enkäterna
+    # Summera in svar (om de finns)
     scores = st.session_state.get("scores", {"lyssnande":{}, "aterkoppling":{}, "malinriktning":{}})
 
-    # Chef-svar
-    if "chef_answers" in st.session_state and isinstance(st.session_state["chef_answers"], list):
+    if "chef_answers" in st.session_state:
         a = st.session_state["chef_answers"]
-        def ssum(idxs): return sum(a[i] for i in idxs if isinstance(a[i], int))
-        scores["lyssnande"]["chef"]    = ssum(IDX_MAP["lyssnande"])
-        scores["aterkoppling"]["chef"] = ssum(IDX_MAP["aterkoppling"])
-        scores["malinriktning"]["chef"]= ssum(IDX_MAP["malinriktning"])
+        def ssum(idx): return sum(v for i,v in enumerate(a) if i in idx and isinstance(v,int))
+        scores["lyssnande"]["chef"]     = ssum(IDX_MAP["lyssnande"])
+        scores["aterkoppling"]["chef"]  = ssum(IDX_MAP["aterkoppling"])
+        scores["malinriktning"]["chef"] = ssum(IDX_MAP["malinriktning"])
 
-    # Medarbetare/Överordnad
-    if "other_answers" in st.session_state and isinstance(st.session_state["other_answers"], list):
+    if "other_answers" in st.session_state:
         a = st.session_state["other_answers"]
-        def ssum(idxs): return sum(a[i] for i in idxs if isinstance(a[i], int))
-        role = st.session_state.get("kontakt", {}).get("Funktion", "Medarbetare")
-        key = "medarbetare" if role == "Medarbetare" else "overchef"
-        scores["lyssnande"][key]     = ssum(IDX_MAP["lyssnande"])
-        scores["aterkoppling"][key]  = ssum(IDX_MAP["aterkoppling"])
-        scores["malinriktning"][key] = ssum(IDX_MAP["malinriktning"])
+        def ssum(idx): return sum(v for i,v in enumerate(a) if i in idx and isinstance(v,int))
+        scores["lyssnande"]["medarbetare"]     = ssum(IDX_MAP["lyssnande"])
+        scores["aterkoppling"]["medarbetare"]  = ssum(IDX_MAP["aterkoppling"])
+        scores["malinriktning"]["medarbetare"] = ssum(IDX_MAP["malinriktning"])
+
+    if "over_answers" in st.session_state:
+        a = st.session_state["over_answers"]
+        def ssum(idx): return sum(v for i,v in enumerate(a) if i in idx and isinstance(v,int))
+        scores["lyssnande"]["overchef"]     = ssum(IDX_MAP["lyssnande"])
+        scores["aterkoppling"]["overchef"]  = ssum(IDX_MAP["aterkoppling"])
+        scores["malinriktning"]["overchef"] = ssum(IDX_MAP["malinriktning"])
 
     st.session_state["scores"] = scores
 
     # ====== UI ======
     st.markdown(f"# {PAGE_TITLE}")
 
-    # Kontaktuppgifter – låsta fält
+    # Kontakt (låsta fält)
     st.markdown("<div class='contact-title'>Kontaktuppgifter</div>", unsafe_allow_html=True)
     with st.container():
         st.markdown("<div class='card contact-card'>", unsafe_allow_html=True)
         base = st.session_state.get("kontakt", {"Namn":"","Företag":"","Telefon":"","E-post":"","Funktion":"Chef","Unikt id":""})
-        c1, c2, c3 = st.columns([0.4, 0.3, 0.3])
+        c1,c2,c3 = st.columns([0.4,0.3,0.3])
         with c1:
             st.text_input("Namn", value=base.get("Namn",""), disabled=True)
             st.text_input("E-post", value=base.get("E-post",""), disabled=True)
@@ -463,10 +484,10 @@ def render_assessment():
             card += bar("Överordnad chef", over, mx, "bar-orange")
             card += bar("Medarbetare", med, mx, "bar-blue")
             card += [f"<div class='maxline'>Max: {mx} poäng</div>", "</div>"]
-
             st.markdown("\n".join(card), unsafe_allow_html=True)
             st.markdown("</div>", unsafe_allow_html=True)
 
+    # PDF
     st.divider()
     st.caption("Ladda ner en PDF som speglar innehållet.")
     pdf_bytes = pdf_from_page(PAGE_TITLE, SECTIONS, scores, st.session_state.get("kontakt", {}))
@@ -491,5 +512,7 @@ elif page == "chef_survey":
     render_chef_survey()
 elif page == "other_survey":
     render_other_survey()
+elif page == "over_survey":
+    render_over_survey()
 else:
     render_assessment()
