@@ -130,7 +130,7 @@ def render_landing():
     st.markdown(
         """
         <div class="card hero">
-          <h1>Självskattning – Funktionellt ledarskap</h1>
+          <h1>Självskattning  Funktionellt ledarskap</h1>
           <p>Fyll i dina uppgifter nedan och starta självskattningen.</p>
         </div>
         """,
