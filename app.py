@@ -1,6 +1,6 @@
 from io import BytesIO
 from datetime import datetime
-import os, json, secrets, string, textwrap, requests
+import json, textwrap
 
 import streamlit as st
 from reportlab.pdfgen import canvas
@@ -8,21 +8,12 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.colors import HexColor, black, Color
 
 # =============================
-# Konfiguration
+# Grundinställningar / tema
 # =============================
+st.set_page_config(page_title="Självskattning – Funktionellt ledarskap", page_icon="📄", layout="centered")
+
 EGGSHELL = "#FAF7F0"
-PAGE_TITLE = "Självskattning – Funktionellt ledarskap"
 
-# (valfritt) skicka summerna till Power Automate när CHEF skickar in enkäten
-SEND_TO_FLOW_AFTER_SURVEY = False  # slå på om du vill skicka vid inskick
-
-FLOW_URL_DEFAULT = "https://default1ad3791223f4412ea6272223201343.20.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/bff5923897b04a39bc6ba69ea4afde69/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=B1rjO0FhY0ZxXO8VJvWPmcLAv-LMCgICG6tDguPmhwQ"
-FLOW_URL = os.getenv("FLOW_URL", FLOW_URL_DEFAULT).strip()
-
-# =============================
-# Tema / CSS
-# =============================
-st.set_page_config(page_title=PAGE_TITLE, page_icon="📄", layout="centered")
 st.markdown(
     f"""
     <style>
@@ -57,8 +48,10 @@ st.markdown(
 )
 
 # =============================
-# Innehåll
+# Innehåll och frågor
 # =============================
+PAGE_TITLE = "Självskattning – Funktionellt ledarskap"
+
 SECTIONS = [
     {
         "key": "lyssnande",
@@ -114,6 +107,7 @@ QUESTIONS = [
     "Är tydlig med vad du förväntar dig av dem",
     "Ser till att dina medarbetares arbete samordnas",
 ]
+
 IDX_MAP = {
     "lyssnande": list(range(0, 7)),
     "aterkoppling": list(range(7, 15)),
@@ -123,35 +117,23 @@ IDX_MAP = {
 # =============================
 # Hjälpare
 # =============================
-def generate_unikt_id(n=8):
-    import string, secrets
-    alphabet = string.ascii_uppercase + string.digits
-    return "".join(secrets.choice(alphabet) for _ in range(n))
-
-def send_to_flow(payload: dict):
-    if not FLOW_URL:
-        return False, None, "FLOW_URL saknas."
+def do_rerun():
+    """Säker rerun som funkar i både nya och äldre Streamlit-versioner."""
     try:
-        r = requests.post(FLOW_URL, json=payload, timeout=25)
-        if 200 <= r.status_code < 300:
-            try:
-                data = r.json() if r.content else {}
-            except Exception:
-                data = {}
-            uid = data.get("uniktId") or data.get("unikt_id") or data.get("id") or data.get("uniqueId") or data.get("UniqueId")
-            return True, (str(uid) if uid else None), None
-        return False, None, f"HTTP {r.status_code}: {r.text[:300]}"
-    except Exception as e:
-        return False, None, str(e)
+        st.rerun()
+    except AttributeError:
+        st.experimental_rerun()  # fallback
 
-def pdf_from_page(title: str, sections, results_map, kontaktinfo: dict) -> bytes:
+def generate_pdf(title: str, sections, results_map, kontaktinfo: dict) -> bytes:
     buf = BytesIO()
     pdf = canvas.Canvas(buf, pagesize=A4)
     w, h = A4
+
     pdf.setFillColor(HexColor(EGGSHELL)); pdf.rect(0,0,w,h,fill=1,stroke=0)
     pdf.setFillColor(black)
 
-    margin = 50; y = h - 60
+    margin = 50
+    y = h - 60
     pdf.setTitle("självskattning_funktionellt_ledarskap.pdf")
     pdf.setFont("Helvetica-Bold", 22); pdf.drawString(margin, y, title)
     pdf.setFont("Helvetica", 9); pdf.drawRightString(w - margin, y+4, datetime.now().strftime("Genererad: %Y-%m-%d %H:%M"))
@@ -178,10 +160,13 @@ def pdf_from_page(title: str, sections, results_map, kontaktinfo: dict) -> bytes
     def ensure(need):
         nonlocal y
         if y - need < 50:
-            pdf.showPage(); pdf.setFillColor(HexColor(EGGSHELL)); pdf.rect(0,0,w,h,fill=1,stroke=0)
-            pdf.setFillColor(black); pdf.setFont("Helvetica",9); pdf.drawString(margin, h-40, title); y = h - 60
+            pdf.showPage()
+            pdf.setFillColor(HexColor(EGGSHELL)); pdf.rect(0,0,w,h,fill=1,stroke=0)
+            pdf.setFillColor(black); pdf.setFont("Helvetica",9); pdf.drawString(margin, h-40, title)
+            y = h - 60
 
-    bg = Color(0.91,0.92,0.94); green=Color(0.30,0.69,0.31); orange=Color(0.96,0.65,0.15); blue=Color(0.23,0.51,0.96)
+    bg = Color(0.91,0.92,0.94)
+    green=Color(0.30,0.69,0.31); orange=Color(0.96,0.65,0.15); blue=Color(0.23,0.51,0.96)
 
     for s in sections:
         ensure(30)
@@ -191,7 +176,7 @@ def pdf_from_page(title: str, sections, results_map, kontaktinfo: dict) -> bytes
             for ln in textwrap.wrap(para, width=95):
                 ensure(16); pdf.drawString(margin, y, ln); y -= 16
 
-        key = s["key"]; mx = s["max"]
+        key, mx = s["key"], s["max"]
         for label, role, col in [("Chef","chef",green), ("Överordnad chef","overchef",orange), ("Medarbetare","medarbetare",blue)]:
             val = int(results_map.get(key,{}).get(role,0))
             ensure(26); pdf.setFont("Helvetica-Bold",10); pdf.drawString(margin, y, f"{label}: {val} poäng"); y -= 12
@@ -213,11 +198,12 @@ def render_landing():
           <h1>Självskattning – Funktionellt ledarskap</h1>
           <p>Fyll i dina uppgifter nedan och starta självskattningen.</p>
         </div>
-        """, unsafe_allow_html=True
+        """,
+        unsafe_allow_html=True,
     )
     d = st.session_state.get("kontakt", {"Namn":"","Företag":"","Telefon":"","E-post":"","Funktion":"Chef","Unikt id":""})
     with st.form("landing"):
-        c1,c2 = st.columns([0.5,0.5])
+        c1, c2 = st.columns([0.5, 0.5])
         with c1:
             namn = st.text_input("Namn", value=d["Namn"])
             tel  = st.text_input("Telefon", value=d["Telefon"])
@@ -232,29 +218,33 @@ def render_landing():
         if not namn.strip() or not mail.strip():
             st.warning("Fyll i minst Namn och E-post.")
             return
+
         st.session_state["kontakt"] = {
             "Namn": namn.strip(), "Företag": fore.strip(), "Telefon": tel.strip(),
-            "E-post": mail.strip(), "Funktion": fun,
-            "Unikt id": generate_unikt_id() if fun=="Chef" else ""
+            "E-post": mail.strip(), "Funktion": fun, "Unikt id": ""  # id kan läggas till senare om du vill
         }
-        # initiera enkät-state för CHEF
+
         if fun == "Chef":
-            st.session_state["chef_answers"] = [None] * len(QUESTIONS)  # inga förval
+            # Initiera enkät (inget förifyllt)
+            st.session_state["chef_answers"] = [None] * len(QUESTIONS)
             st.session_state["survey_page"] = 0
             st.session_state["page"] = "chef_survey"
+            do_rerun()
         else:
             st.session_state["page"] = "id_page"
+            do_rerun()
 
 def render_id_page():
     st.markdown("## Ange unikt id")
     st.info("Detta steg gäller för Överordnad chef och Medarbetare.")
     base = st.session_state.get("kontakt", {})
     with st.form("idform"):
-        c1,c2 = st.columns([0.6,0.4])
+        c1, c2 = st.columns([0.6, 0.4])
         with c1:
             uid = st.text_input("Unikt id", value=base.get("Unikt id",""))
         with c2:
-            st.write(""); st.write(f"**Funktion:** {base.get('Funktion','')}")
+            st.write("")
+            st.write(f"**Funktion:** {base.get('Funktion','')}")
         ok = st.form_submit_button("Fortsätt", type="primary")
     if ok:
         if not uid.strip():
@@ -262,13 +252,16 @@ def render_id_page():
             return
         st.session_state["kontakt"]["Unikt id"] = uid.strip()
         st.session_state["page"] = "assessment"
-    if st.button("◀ Tillbaka"): st.session_state["page"] = "landing"
+        do_rerun()
+    if st.button("◀ Tillbaka"): 
+        st.session_state["page"] = "landing"
+        do_rerun()
 
 def render_chef_survey():
     st.markdown("## Självskattning (Chef)")
     st.caption("Svara på varje påstående på en skala 1–7 (1 = stämmer inte alls, 7 = stämmer helt).")
 
-    # JS: scrolla till toppen vid sidbyte
+    # Scrolla till toppen när flaggan satts
     if st.session_state.get("scroll_to_top"):
         st.markdown("<script>window.scrollTo(0,0);</script>", unsafe_allow_html=True)
         st.session_state["scroll_to_top"] = False
@@ -276,108 +269,73 @@ def render_chef_survey():
     ans = st.session_state.get("chef_answers", [None]*len(QUESTIONS))
     page = st.session_state.get("survey_page", 0)
 
-    # 5 frågor per sida
     per_page = 5
     start_idx = page * per_page
     end_idx = start_idx + per_page
-    slice_questions = list(enumerate(QUESTIONS[start_idx:end_idx], start=start_idx+1))
+    current_slice = list(enumerate(QUESTIONS[start_idx:end_idx], start=start_idx+1))
 
-    # Rendera frågor (utan default)
-    for i, q in slice_questions:
+    for i, q in current_slice:
         st.markdown(f"**{i}. {q}**")
-        # index=None ger ingen förvald (Streamlit ≥1.25). Annars lämnas tidigare state.
+
+        # Ingen förvald – låt index vara None om ingen valt tidigare
         current_val = ans[i-1]
-        index_arg = None if current_val is None else [1,2,3,4,5,6,7].index(current_val)
+        idx = None
+        if isinstance(current_val, int) and 1 <= current_val <= 7:
+            idx = [1,2,3,4,5,6,7].index(current_val)
+
         selected = st.radio(
             label="",
             options=[1,2,3,4,5,6,7],
-            index=index_arg,
+            index=idx,
             horizontal=True,
             label_visibility="collapsed",
             key=f"chef_q_{i}",
         )
-        # När radio renderas med index=None och användaren inte klickat, returnerar Streamlit
-        # det som finns i session_state under nyckeln (None). Vi synkar listan:
+        # Synka listan med nuvarande state (kommer vara None tills användaren valt)
         st.session_state["chef_answers"][i-1] = st.session_state.get(f"chef_q_{i}")
 
-        if i != slice_questions[-1][0]:
+        if i != current_slice[-1][0]:
             st.divider()
 
-    # Knappar & validering
-    left, mid, right = st.columns([0.25, 0.5, 0.25])
-    with left:
+    # Navigering + validering
+    col1, col2 = st.columns([0.5, 0.5])
+    with col1:
         if page > 0:
             if st.button("◀ Tillbaka"):
                 st.session_state["survey_page"] = page - 1
                 st.session_state["scroll_to_top"] = True
-                st.experimental_rerun()
-    with right:
-        # alla frågor på sidan måste vara ifyllda
+                do_rerun()
+    with col2:
         page_answers = st.session_state["chef_answers"][start_idx:end_idx]
-        all_filled = all(isinstance(v, int) and (1 <= v <= 7) for v in page_answers)
+        all_filled = all(isinstance(v, int) and 1 <= v <= 7 for v in page_answers)
 
         if page < 3:
             if st.button("Nästa ▶", disabled=not all_filled):
                 st.session_state["survey_page"] = page + 1
                 st.session_state["scroll_to_top"] = True
-                st.experimental_rerun()
+                do_rerun()
         else:
             if st.button("Skicka självskattning", type="primary", disabled=not all_filled):
-                # summera och gå till resultat
+                # Summera resultat för Chef
                 a = st.session_state["chef_answers"]
                 def ssum(idxs): return sum(a[i] for i in idxs)
-                sums = {
-                    "lyssnande":   ssum(IDX_MAP["lyssnande"]),
-                    "aterkoppling":ssum(IDX_MAP["aterkoppling"]),
-                    "malinriktning":ssum(IDX_MAP["malinriktning"]),
-                }
                 st.session_state["scores"] = {
-                    "lyssnande":   {"chef": int(sums["lyssnande"])},
-                    "aterkoppling":{"chef": int(sums["aterkoppling"])},
-                    "malinriktning":{"chef": int(sums["malinriktning"])},
+                    "lyssnande":   {"chef": ssum(IDX_MAP["lyssnande"])},
+                    "aterkoppling":{"chef": ssum(IDX_MAP["aterkoppling"])},
+                    "malinriktning":{"chef": ssum(IDX_MAP["malinriktning"])},
                 }
-
-                if SEND_TO_FLOW_AFTER_SURVEY:
-                    kontakt = st.session_state.get("kontakt", {})
-                    payload = {
-                        "title": PAGE_TITLE,
-                        "name": kontakt.get("Namn",""),
-                        "company": kontakt.get("Företag",""),
-                        "email": kontakt.get("E-post",""),
-                        "sumListening": int(sums["lyssnande"]),
-                        "sumFeedback":  int(sums["aterkoppling"]),
-                        "sumGoal":      int(sums["malinriktning"]),
-                        "answersJson":  json.dumps(
-                            [{"nr":i+1,"question":QUESTIONS[i],"answer":a[i]} for i in range(len(QUESTIONS))],
-                            ensure_ascii=False
-                        ),
-                        "submittedAt":  datetime.utcnow().isoformat() + "Z",
-                        "secret":       kontakt.get("Unikt id",""),
-                        "hasPdf":       False,
-                        "pdfBase64":    "",
-                        "fileName":     "",
-                    }
-                    ok, ret_uid, err = send_to_flow(payload)
-                    if ok and ret_uid:
-                        st.session_state["kontakt"]["Unikt id"] = ret_uid
-                        st.success(f"Skickat. Unikt id: {ret_uid}")
-                    elif ok:
-                        st.success("Skickat till Power Automate.")
-                    else:
-                        st.error(f"Kunde inte skicka till Power Automate: {err}")
-
                 st.session_state["page"] = "assessment"
-                st.experimental_rerun()
+                do_rerun()
 
 def render_assessment():
     st.markdown(f"# {PAGE_TITLE}")
 
-    # Kontaktkort
+    # Kontaktuppgifter (redigerbara fält)
     st.markdown("<div class='contact-title'>Kontaktuppgifter</div>", unsafe_allow_html=True)
     with st.container():
         st.markdown("<div class='card contact-card'>", unsafe_allow_html=True)
         base = st.session_state.get("kontakt", {"Namn":"","Företag":"","Telefon":"","E-post":"","Funktion":"Chef","Unikt id":""})
-        c1,c2,c3 = st.columns([0.4,0.3,0.3])
+        c1, c2, c3 = st.columns([0.4, 0.3, 0.3])
         with c1:
             n = st.text_input("Namn", value=base.get("Namn",""))
             e = st.text_input("E-post", value=base.get("E-post",""))
@@ -391,7 +349,7 @@ def render_assessment():
         st.session_state["kontakt"] = {"Namn":n,"E-post":e,"Företag":f,"Telefon":t,"Funktion":fun,"Unikt id":uid}
         st.markdown("</div>", unsafe_allow_html=True)
 
-    # Resultat (visar bara Chef just nu)
+    # Resultatkorten (68/32)
     scores = st.session_state.get("scores", {"lyssnande":{}, "aterkoppling":{}, "malinriktning":{}})
     for s in SECTIONS:
         left, right = st.columns([0.68, 0.32])
@@ -426,10 +384,12 @@ def render_assessment():
     st.divider()
     st.caption("Ladda ner en PDF som speglar innehållet.")
 
-    pdf_bytes = pdf_from_page(PAGE_TITLE, SECTIONS, scores, st.session_state.get("kontakt", {}))
+    pdf_bytes = generate_pdf(PAGE_TITLE, SECTIONS, scores, st.session_state.get("kontakt", {}))
     st.download_button("Ladda ner PDF", data=pdf_bytes, file_name="självskattning_funktionellt_ledarskap.pdf", mime="application/pdf", type="primary")
 
-    if st.button("◀ Till startsidan"): st.session_state["page"] = "landing"
+    if st.button("◀ Till startsidan"):
+        st.session_state["page"] = "landing"
+        do_rerun()
 
 # =============================
 # Router
