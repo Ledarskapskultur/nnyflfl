@@ -2,6 +2,8 @@ from io import BytesIO
 from datetime import datetime
 import os
 import json
+import secrets
+import string
 import textwrap
 import requests
 
@@ -11,7 +13,7 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.colors import HexColor, black, Color
 
 # =====================================
-# Grundinställningar
+# Grundinställningar & tema
 # =====================================
 st.set_page_config(
     page_title="Självskattning – Funktionellt ledarskap",
@@ -31,19 +33,16 @@ st.markdown(
       .stMarkdown h2 {{ font-size: 19px; font-weight: 700; margin: 24px 0 8px 0; }}
       .stMarkdown p, .stMarkdown {{ font-size: 15px; line-height: 21px; }}
 
-      /* Kort/komponenter */
       .card {{ background:#fff; border-radius:12px; border:1px solid rgba(0,0,0,.12);
                box-shadow:0 6px 20px rgba(0,0,0,.08); padding:14px 16px; }}
       .hero {{ text-align:center; padding:34px 28px; }}
       .hero h1 {{ font-size:34px; margin:0 0 8px 0; }}
       .hero p  {{ color:#374151; margin:0 0 18px 0; }}
 
-      /* Kontakt */
       .contact-card {{ padding:12px 14px; }}
       .contact-title {{ font-weight:700; font-size:19px; margin: 6px 0 10px 0; }}
       .stTextInput>div>div>input {{ background:#F8FAFC; }}
 
-      /* Resultatkort (bedömning) */
       .right-wrap {{ display:flex; align-items:center; justify-content:center; }}
       .res-card {{ max-width:380px; width:100%; padding:16px 18px; }}
       .role-label {{ font-size:13px; color:#111827; margin:10px 0 6px 0; display:block; font-weight:600; }}
@@ -74,7 +73,7 @@ SECTIONS = [
 Därför är aktivt lyssnande en av chefens viktigaste färdigheter. Det handlar inte bara om att höra vad som sägs, utan om att förstå, visa intresse och använda den information du får. När du bjuder in till dialog och tar till dig medarbetarnas perspektiv visar du att deras erfarenheter är värdefulla.
 
 Genom att agera på det du hör – bekräfta, följa upp och omsätta idéer i handling – stärker du både engagemang, förtroende och delaktighet.""",
-        "max": 49,  # 7 frågor
+        "max": 49,
     },
     {
         "key": "aterkoppling",
@@ -84,7 +83,7 @@ Genom att agera på det du hör – bekräfta, följa upp och omsätta idéer i 
 Återkoppling handlar sedan om närvaro och uppföljning – att se, lyssna och ge både beröm och konstruktiv feedback. Genom att tydligt lyfta fram vad som fungerar och vad som kan förbättras, förstärker du önskvärda beteenden och hjälper dina medarbetare att lyckas.
 
 I svåra situationer blir återkopplingen extra viktig. Att vara lugn, konsekvent och tydlig när det blåser visar ledarskap på riktigt.""",
-        "max": 56,  # 8 frågor
+        "max": 56,
     },
     {
         "key": "malinriktning",
@@ -94,11 +93,11 @@ I svåra situationer blir återkopplingen extra viktig. Att vara lugn, konsekven
 Som chef handlar det om att formulera mål som går att tro på, och att tydliggöra hur de ska nås. När du delegerar ansvar och befogenheter visar du förtroende och skapar engagemang. Målen blir då inte bara något att leverera på – utan något att vara delaktig i.
 
 Uppföljning är nyckeln. Genom att uppmärksamma framsteg, ge återkoppling och fira resultat förstärker du både prestation och motivation.""",
-        "max": 35,  # 5 frågor
+        "max": 35,
     },
 ]
 
-# Poäng per roll – sätt värden här (visas i UI/PDF)
+# Poäng per roll (sätt här)
 preset_scores = {
     "lyssnande":   {"chef": 0, "overchef": 0, "medarbetare": 0},
     "aterkoppling":{"chef": 0, "overchef": 0, "medarbetare": 0},
@@ -113,8 +112,13 @@ ROLES_REQUIRE_ID = {"Överordnad chef", "Medarbetare"}
 FLOW_URL_DEFAULT = "https://default1ad3791223f4412ea6272223201343.20.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/bff5923897b04a39bc6ba69ea4afde69/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=B1rjO0FhY0ZxXO8VJvWPmcLAv-LMCgICG6tDguPmhwQ"
 FLOW_URL = os.getenv("FLOW_URL", FLOW_URL_DEFAULT).strip()
 
+def generate_unikt_id(length: int = 8) -> str:
+    """Skapa ett kort, läsbart alfanumeriskt id."""
+    alphabet = string.ascii_uppercase + string.digits
+    return "".join(secrets.choice(alphabet) for _ in range(length))
+
 def send_to_flow(payload: dict) -> tuple[bool, str | None, str | None]:
-    """POST till Power Automate. Returnerar (ok, unikt_id, fel)."""
+    """POST till Power Automate. Returnerar (ok, unikt_id (om flödet skickar tillbaka), fel)."""
     if not FLOW_URL:
         return False, None, "FLOW_URL saknas."
     try:
@@ -173,24 +177,28 @@ def render_landing():
             st.warning("Fyll i minst Namn och E-post för att fortsätta.")
             return
 
+        # Skapa ett unikt id direkt när Starta klickas
+        generated_id = generate_unikt_id()
+
+        # Spara grunddata i session
         st.session_state["kontakt"] = {
             "Namn": namn.strip(),
             "Företag": foretag.strip(),
             "Telefon": telefon.strip(),
             "E-post": epost.strip(),
             "Funktion": funktion,
-            "Unikt id": default.get("Unikt id",""),
+            "Unikt id": generated_id if funktion == "Chef" else default.get("Unikt id",""),
         }
 
         if funktion == "Chef":
-            # Summor enligt Flow-schemat (Chefens poäng)
+            # Summor (chefens poäng) enligt Flow-schemat
             sum_listening = int(preset_scores.get("lyssnande", {}).get("chef", 0))
             sum_feedback  = int(preset_scores.get("aterkoppling", {}).get("chef", 0))
             sum_goal      = int(preset_scores.get("malinriktning", {}).get("chef", 0))
 
             answers = []  # plats för framtida enkätsvar
             payload = {
-                # Krävda fält enligt felmeddelandet/schemat
+                # KRÄVDA fält enligt ditt schema
                 "title": PAGE_TITLE,
                 "name": namn.strip(),
                 "email": epost.strip(),
@@ -201,24 +209,28 @@ def render_landing():
                 "submittedAt":  datetime.utcnow().isoformat() + "Z",
                 "hasPdf":       False,
 
-                # Extra (kan vara användbart i flödet)
+                # EXTRA fält – här skickar vi det genererade id:t också
+                "uniktId": generated_id,
+                "clientUniktId": generated_id,
                 "company":  foretag.strip(),
                 "phone":    telefon.strip(),
                 "role":     funktion,
             }
 
-            ok, uid, err = send_to_flow(payload)
+            ok, returned_uid, err = send_to_flow(payload)
             if ok:
-                if uid:
-                    st.session_state["kontakt"]["Unikt id"] = uid
-                    st.success(f"Post skapad i SharePoint. <span class='ok-badge'>Unikt id: {uid}</span>", icon="✅")
-                else:
-                    st.info("Post skapad i SharePoint, men flödet returnerade inget unikt id.", icon="ℹ️")
+                # Om flödet dessutom returnerar ett id, använd det – annars behåll klient-id:t
+                st.session_state["kontakt"]["Unikt id"] = returned_uid or generated_id
+                show_id = st.session_state["kontakt"]["Unikt id"]
+                st.success(
+                    f"Post skapad i SharePoint. <span class='ok-badge'>Unikt id: {show_id}</span>",
+                    icon="✅",
+                )
                 st.session_state["page"] = "assessment"
             else:
                 st.error(f"Kunde inte skicka till Power Automate: {err}", icon="🚫")
         else:
-            st.session_state["page"] = "id_page"  # Överordnad/Medarbetare → ange Unikt id
+            st.session_state["page"] = "id_page"  # Överordnad/Medarbetare → ange Unikt id manuellt
 
 # =====================================
 # Sida: Ange unikt id (Överordnad/Medarbetare)
@@ -254,7 +266,7 @@ def render_id_page():
 def render_assessment():
     st.markdown(f"# {PAGE_TITLE}")
 
-    # Kontaktuppgifter
+    # Kontaktkort
     st.markdown("<div class='contact-title'>Kontaktuppgifter</div>", unsafe_allow_html=True)
     with st.container():
         st.markdown("<div class='card contact-card'>", unsafe_allow_html=True)
@@ -273,7 +285,7 @@ def render_assessment():
                 ["Chef", "Överordnad chef", "Medarbetare"],
                 index=["Chef","Överordnad chef","Medarbetare"].index(base.get("Funktion","Chef")),
             )
-            visa_id = kontakt_funktion in ROLES_REQUIRE_ID or bool(base.get("Unikt id"))
+            visa_id = True if base.get("Unikt id") or (kontakt_funktion in ROLES_REQUIRE_ID) else (kontakt_funktion == "Chef")
             kontakt_unikt_id = st.text_input("Unikt id", value=base.get("Unikt id",""), disabled=not visa_id)
 
         st.session_state["kontakt"] = {
@@ -297,7 +309,6 @@ def render_assessment():
                 st.write(para)
         with right:
             scores = preset_scores.get(block["key"], {"chef":0,"overchef":0,"medarbetare":0})
-
             st.markdown("<div class='right-wrap'>", unsafe_allow_html=True)
             html = [f"<div class='card res-card'>"]
 
