@@ -1,6 +1,6 @@
 from io import BytesIO
 from datetime import datetime
-import json, textwrap
+import json, textwrap, string, secrets
 
 import streamlit as st
 from reportlab.pdfgen import canvas
@@ -48,7 +48,7 @@ st.markdown(
 )
 
 # =============================
-# Innehåll och frågor
+# Texter & sektioner
 # =============================
 PAGE_TITLE = "Självskattning – Funktionellt ledarskap"
 
@@ -56,7 +56,7 @@ SECTIONS = [
     {
         "key": "lyssnande",
         "title": "Aktivt lyssnande",
-        "max": 49,
+        "max": 49,  # 7 frågor
         "text": """I dagens arbetsliv har chefens roll förändrats. Medarbetarna sitter ofta på den djupaste kompetensen och lösningarna på verksamhetens utmaningar.
 
 Därför är aktivt lyssnande en av chefens viktigaste färdigheter. Det handlar inte bara om att höra vad som sägs, utan om att förstå, visa intresse och använda den information du får. När du bjuder in till dialog och tar till dig medarbetarnas perspektiv visar du att deras erfarenheter är värdefulla.
@@ -66,7 +66,7 @@ Genom att agera på det du hör – bekräfta, följa upp och omsätta idéer i 
     {
         "key": "aterkoppling",
         "title": "Återkoppling",
-        "max": 56,
+        "max": 56,  # 8 frågor
         "text": """Effektiv återkoppling är grunden för både utveckling och motivation. Medarbetare behöver veta vad som förväntas, hur de ligger till och hur de kan växa. När du som chef tydligt beskriver uppgifter och förväntade beteenden skapar du trygghet och fokus i arbetet.
 
 Återkoppling handlar sedan om närvaro och uppföljning – att se, lyssna och ge både beröm och konstruktiv feedback. Genom att tydligt lyfta fram vad som fungerar och vad som kan förbättras, förstärker du önskvärda beteenden och hjälper dina medarbetare att lyckas.
@@ -76,7 +76,7 @@ I svåra situationer blir återkopplingen extra viktig. Att vara lugn, konsekven
     {
         "key": "malinriktning",
         "title": "Målinriktning",
-        "max": 35,
+        "max": 35,  # 5 frågor
         "text": """Målinriktat ledarskap handlar om att ge tydliga ramar – tid, resurser och ansvar – så att medarbetare kan arbeta effektivt och med trygghet. Tydliga och inspirerande mål skapar riktning och hjälper alla att förstå vad som är viktigt just nu.
 
 Som chef handlar det om att formulera mål som går att tro på, och att tydliggöra hur de ska nås. När du delegerar ansvar och befogenheter visar du förtroende och skapar engagemang. Målen blir då inte bara något att leverera på – utan något att vara delaktig i.
@@ -85,6 +85,7 @@ Uppföljning är nyckeln. Genom att uppmärksamma framsteg, ge återkoppling och
     },
 ]
 
+# 20 frågor, exakt ordning, Likert 1–7
 QUESTIONS = [
     "Efterfrågar deras förslag när det gäller hur arbetet kan förbättras",
     "Efterfrågar deras idéer när det gäller planering av arbetet",
@@ -107,28 +108,32 @@ QUESTIONS = [
     "Är tydlig med vad du förväntar dig av dem",
     "Ser till att dina medarbetares arbete samordnas",
 ]
-
 IDX_MAP = {
     "lyssnande": list(range(0, 7)),
     "aterkoppling": list(range(7, 15)),
     "malinriktning": list(range(15, 20)),
 }
 
+ROLE_LABELS = {"chef": "Chef", "overchef": "Överordnad chef", "medarbetare": "Medarbetare"}
+
 # =============================
 # Hjälpare
 # =============================
+def generate_unikt_id(n=8) -> str:
+    alphabet = string.ascii_uppercase + string.digits
+    return "".join(secrets.choice(alphabet) for _ in range(n))
+
 def do_rerun():
     """Säker rerun som funkar i både nya och äldre Streamlit-versioner."""
     try:
         st.rerun()
     except AttributeError:
-        st.experimental_rerun()  # fallback
+        st.experimental_rerun()
 
-def generate_pdf(title: str, sections, results_map, kontaktinfo: dict) -> bytes:
+def pdf_from_page(title: str, sections, results_map, kontaktinfo: dict) -> bytes:
     buf = BytesIO()
     pdf = canvas.Canvas(buf, pagesize=A4)
     w, h = A4
-
     pdf.setFillColor(HexColor(EGGSHELL)); pdf.rect(0,0,w,h,fill=1,stroke=0)
     pdf.setFillColor(black)
 
@@ -139,9 +144,10 @@ def generate_pdf(title: str, sections, results_map, kontaktinfo: dict) -> bytes:
     pdf.setFont("Helvetica", 9); pdf.drawRightString(w - margin, y+4, datetime.now().strftime("Genererad: %Y-%m-%d %H:%M"))
     y -= 28
 
+    # Kontaktuppgifter låsta i PDF
     pdf.setFont("Helvetica-Bold", 10); pdf.drawString(margin, y, "Kontaktuppgifter"); y -= 14
     pdf.setFont("Helvetica", 10)
-    row = [
+    parts = [
         f"Unikt id: {kontaktinfo.get('Unikt id','')}",
         f"Namn: {kontaktinfo.get('Namn','')}",
         f"Företag: {kontaktinfo.get('Företag','')}",
@@ -149,24 +155,21 @@ def generate_pdf(title: str, sections, results_map, kontaktinfo: dict) -> bytes:
         f"E-post: {kontaktinfo.get('E-post','')}",
         f"Funktion: {kontaktinfo.get('Funktion','')}",
     ]
-    txt = "   |   ".join(row)
-    if len(txt) > 110:
-        mid = len(row)//2
-        pdf.drawString(margin, y, "   |   ".join(row[:mid])); y -= 14
-        pdf.drawString(margin, y, "   |   ".join(row[mid:])); y -= 8
+    line = "   |   ".join(parts)
+    if len(line) > 110:
+        mid = len(parts)//2
+        pdf.drawString(margin, y, "   |   ".join(parts[:mid])); y -= 14
+        pdf.drawString(margin, y, "   |   ".join(parts[mid:])); y -= 8
     else:
-        pdf.drawString(margin, y, txt); y -= 14
+        pdf.drawString(margin, y, line); y -= 14
 
     def ensure(need):
         nonlocal y
         if y - need < 50:
-            pdf.showPage()
-            pdf.setFillColor(HexColor(EGGSHELL)); pdf.rect(0,0,w,h,fill=1,stroke=0)
-            pdf.setFillColor(black); pdf.setFont("Helvetica",9); pdf.drawString(margin, h-40, title)
-            y = h - 60
+            pdf.showPage(); pdf.setFillColor(HexColor(EGGSHELL)); pdf.rect(0,0,w,h,fill=1,stroke=0)
+            pdf.setFillColor(black); pdf.setFont("Helvetica",9); pdf.drawString(margin, h-40, title); y = h - 60
 
-    bg = Color(0.91,0.92,0.94)
-    green=Color(0.30,0.69,0.31); orange=Color(0.96,0.65,0.15); blue=Color(0.23,0.51,0.96)
+    bg = Color(0.91,0.92,0.94); green=Color(0.30,0.69,0.31); orange=Color(0.96,0.65,0.15); blue=Color(0.23,0.51,0.96)
 
     for s in sections:
         ensure(30)
@@ -176,14 +179,17 @@ def generate_pdf(title: str, sections, results_map, kontaktinfo: dict) -> bytes:
             for ln in textwrap.wrap(para, width=95):
                 ensure(16); pdf.drawString(margin, y, ln); y -= 16
 
-        key, mx = s["key"], s["max"]
-        for label, role, col in [("Chef","chef",green), ("Överordnad chef","overchef",orange), ("Medarbetare","medarbetare",blue)]:
-            val = int(results_map.get(key,{}).get(role,0))
+        key = s["key"]; mx = s["max"]
+        def draw(label, val, maxv, col):
+            nonlocal y
             ensure(26); pdf.setFont("Helvetica-Bold",10); pdf.drawString(margin, y, f"{label}: {val} poäng"); y -= 12
             bw, bh = w-2*margin, 8; pdf.setFillColor(bg); pdf.rect(margin, y, bw, bh, fill=1, stroke=0)
-            fw = 0 if mx==0 else bw*(val/mx); pdf.setFillColor(col); pdf.rect(margin, y, fw, bh, fill=1, stroke=0)
+            fw = 0 if maxv==0 else bw*(val/maxv); pdf.setFillColor(col); pdf.rect(margin, y, fw, bh, fill=1, stroke=0)
             pdf.setFillColor(black); y -= 14
 
+        draw("Chef",            int(results_map.get(key,{}).get("chef",0)),        mx, green)
+        draw("Överordnad chef", int(results_map.get(key,{}).get("overchef",0)),    mx, orange)
+        draw("Medarbetare",     int(results_map.get(key,{}).get("medarbetare",0)), mx, blue)
         pdf.setFont("Helvetica-Bold",10); pdf.drawString(margin, y, f"Max: {mx} poäng"); y -= 18
 
     pdf.showPage(); pdf.save(); buf.seek(0); return buf.getvalue()
@@ -219,14 +225,16 @@ def render_landing():
             st.warning("Fyll i minst Namn och E-post.")
             return
 
+        # Skapa unikt id för Chef; för övriga lämnas tomt tills det anges
+        unikt_id = generate_unikt_id() if fun == "Chef" else ""
+
         st.session_state["kontakt"] = {
             "Namn": namn.strip(), "Företag": fore.strip(), "Telefon": tel.strip(),
-            "E-post": mail.strip(), "Funktion": fun, "Unikt id": ""  # id kan läggas till senare om du vill
+            "E-post": mail.strip(), "Funktion": fun, "Unikt id": unikt_id
         }
 
         if fun == "Chef":
-            # Initiera enkät (inget förifyllt)
-            st.session_state["chef_answers"] = [None] * len(QUESTIONS)
+            st.session_state["chef_answers"] = [None] * len(QUESTIONS)  # inga förval
             st.session_state["survey_page"] = 0
             st.session_state["page"] = "chef_survey"
             do_rerun()
@@ -243,8 +251,7 @@ def render_id_page():
         with c1:
             uid = st.text_input("Unikt id", value=base.get("Unikt id",""))
         with c2:
-            st.write("")
-            st.write(f"**Funktion:** {base.get('Funktion','')}")
+            st.write(""); st.write(f"**Funktion:** {base.get('Funktion','')}")
         ok = st.form_submit_button("Fortsätt", type="primary")
     if ok:
         if not uid.strip():
@@ -253,7 +260,7 @@ def render_id_page():
         st.session_state["kontakt"]["Unikt id"] = uid.strip()
         st.session_state["page"] = "assessment"
         do_rerun()
-    if st.button("◀ Tillbaka"): 
+    if st.button("◀ Tillbaka"):
         st.session_state["page"] = "landing"
         do_rerun()
 
@@ -261,7 +268,7 @@ def render_chef_survey():
     st.markdown("## Självskattning (Chef)")
     st.caption("Svara på varje påstående på en skala 1–7 (1 = stämmer inte alls, 7 = stämmer helt).")
 
-    # Scrolla till toppen när flaggan satts
+    # Scroll till toppen om flaggad
     if st.session_state.get("scroll_to_top"):
         st.markdown("<script>window.scrollTo(0,0);</script>", unsafe_allow_html=True)
         st.session_state["scroll_to_top"] = False
@@ -276,8 +283,6 @@ def render_chef_survey():
 
     for i, q in current_slice:
         st.markdown(f"**{i}. {q}**")
-
-        # Ingen förvald – låt index vara None om ingen valt tidigare
         current_val = ans[i-1]
         idx = None
         if isinstance(current_val, int) and 1 <= current_val <= 7:
@@ -291,7 +296,6 @@ def render_chef_survey():
             label_visibility="collapsed",
             key=f"chef_q_{i}",
         )
-        # Synka listan med nuvarande state (kommer vara None tills användaren valt)
         st.session_state["chef_answers"][i-1] = st.session_state.get(f"chef_q_{i}")
 
         if i != current_slice[-1][0]:
@@ -316,7 +320,6 @@ def render_chef_survey():
                 do_rerun()
         else:
             if st.button("Skicka självskattning", type="primary", disabled=not all_filled):
-                # Summera resultat för Chef
                 a = st.session_state["chef_answers"]
                 def ssum(idxs): return sum(a[i] for i in idxs)
                 st.session_state["scores"] = {
@@ -330,26 +333,24 @@ def render_chef_survey():
 def render_assessment():
     st.markdown(f"# {PAGE_TITLE}")
 
-    # Kontaktuppgifter (redigerbara fält)
+    # Kontaktuppgifter – LÅSTA (ej redigerbara) och Unikt id fylls från tidigare steg
     st.markdown("<div class='contact-title'>Kontaktuppgifter</div>", unsafe_allow_html=True)
     with st.container():
         st.markdown("<div class='card contact-card'>", unsafe_allow_html=True)
         base = st.session_state.get("kontakt", {"Namn":"","Företag":"","Telefon":"","E-post":"","Funktion":"Chef","Unikt id":""})
         c1, c2, c3 = st.columns([0.4, 0.3, 0.3])
         with c1:
-            n = st.text_input("Namn", value=base.get("Namn",""))
-            e = st.text_input("E-post", value=base.get("E-post",""))
+            st.text_input("Namn", value=base.get("Namn",""), disabled=True)
+            st.text_input("E-post", value=base.get("E-post",""), disabled=True)
         with c2:
-            f = st.text_input("Företag", value=base.get("Företag",""))
-            t = st.text_input("Telefon", value=base.get("Telefon",""))
+            st.text_input("Företag", value=base.get("Företag",""), disabled=True)
+            st.text_input("Telefon", value=base.get("Telefon",""), disabled=True)
         with c3:
-            fun = st.selectbox("Funktion", ["Chef","Överordnad chef","Medarbetare"],
-                               index=["Chef","Överordnad chef","Medarbetare"].index(base.get("Funktion","Chef")))
-            uid = st.text_input("Unikt id", value=base.get("Unikt id",""))
-        st.session_state["kontakt"] = {"Namn":n,"E-post":e,"Företag":f,"Telefon":t,"Funktion":fun,"Unikt id":uid}
+            st.text_input("Funktion", value=base.get("Funktion",""), disabled=True)
+            st.text_input("Unikt id", value=base.get("Unikt id",""), disabled=True)
         st.markdown("</div>", unsafe_allow_html=True)
 
-    # Resultatkorten (68/32)
+    # Resultat (68/32)
     scores = st.session_state.get("scores", {"lyssnande":{}, "aterkoppling":{}, "malinriktning":{}})
     for s in SECTIONS:
         left, right = st.columns([0.68, 0.32])
@@ -377,14 +378,13 @@ def render_assessment():
             card += bar("Överordnad chef", over, mx, "bar-orange")
             card += bar("Medarbetare", med, mx, "bar-blue")
             card += [f"<div class='maxline'>Max: {mx} poäng</div>", "</div>"]
-
             st.markdown("\n".join(card), unsafe_allow_html=True)
             st.markdown("</div>", unsafe_allow_html=True)
 
     st.divider()
     st.caption("Ladda ner en PDF som speglar innehållet.")
 
-    pdf_bytes = generate_pdf(PAGE_TITLE, SECTIONS, scores, st.session_state.get("kontakt", {}))
+    pdf_bytes = pdf_from_page(PAGE_TITLE, SECTIONS, scores, st.session_state.get("kontakt", {}))
     st.download_button("Ladda ner PDF", data=pdf_bytes, file_name="självskattning_funktionellt_ledarskap.pdf", mime="application/pdf", type="primary")
 
     if st.button("◀ Till startsidan"):
