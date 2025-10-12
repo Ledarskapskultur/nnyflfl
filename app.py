@@ -171,7 +171,7 @@ IDX_MAP = {
 # Instruktionsrutor
 INSTR_CHEF = (
     "**Chef**\n\n"
-    "Syftet med frågorna nedan är att du ska beskriva hur du kommunicerar med dina medarbetare i frågor som rör deras arbete. "
+    "Syftet är att du ska beskriva hur du kommunicerar med dina medarbetare i frågor som rör deras arbete. "
     "\n\n"
     "Använd följande svarsskala:"
     "\n\n"
@@ -181,7 +181,7 @@ INSTR_CHEF = (
 )
 INSTR_EMP = (
     "**Medarbetare**\n\n"
-    "Syftet med frågorna nedan är att du ska beskriva hur din chef kommunicerar med dig i frågor som rör ditt arbete. "
+    "Syftet är att du ska beskriva hur din chef kommunicerar med dig i frågor som rör ditt arbete. "
     "\n\n"
     "Använd följande svarsskala:"
     "\n\n"
@@ -191,8 +191,12 @@ INSTR_EMP = (
 )
 INSTR_OVER = (
     "**Överordnad chef**\n\n"
-    "Syftet med frågorna nedan är att du ska beskriva hur din underställda chef kommunicerar i arbetsrelaterade frågor. "
-    "Använd följande svarsskala: **1 = Aldrig, 2 = Nästan aldrig, 3 = Sällan, 4 = Ibland, 5 = Ofta, 6 = Nästan alltid, 7 = Alltid**. "
+    "Syftet är att du ska beskriva hur din underställda chef kommunicerar i arbetsrelaterade frågor. "
+    "\n\n"
+    "Använd följande svarsskala:"
+    "\n\n"
+    "**1 = Aldrig, 2 = Nästan aldrig, 3 = Sällan, 4 = Ibland, 5 = Ofta, 6 = Nästan alltid, 7 = Alltid**. "
+    "\n\n"
     "Ange hur ofta **din underställda chef** gör följande:"
 )
 
