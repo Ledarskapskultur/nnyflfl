@@ -281,7 +281,7 @@ def build_pdf(title: str, sections, results_map, contact: dict) -> bytes:
         # Beräkna vänsterkolumnens höjd för att centrera kortet vertikalt
         approx_chars = max(40, int(95 * (left_w / content_w)))
         y_probe = section_top
-        for para in str(s["text"]).split("\\n\\n"):
+        for para in str(s["text"]).split("\n\n"):
             for ln in textwrap.wrap(para, width=approx_chars):
                 y_probe -= 16
             y_probe -= 4
@@ -453,13 +453,13 @@ def render_survey_core(title: str, instruction_md: str, questions: list[str], an
         slice_vals = st.session_state[answers_key][start_idx:end_idx]
         full = all(isinstance(v, int) and 1 <= v <= 7 for v in slice_vals)
         if page < 3:
-            st.button("Nästa ▶", disabled=not full, on_click=lambda: (
-                st.session_state.update({page_key: page+1}), rerun()
-            ))
+            (lambda pressed: (st.session_state.update({page_key: page+1}) or rerun()) if pressed else None)(
+                st.button("Nästa ▶", disabled=not full, key=f"next_{page}")
+            )
         else:
-            st.button("Skicka självskattning", type="primary", disabled=not full, on_click=lambda: (
-                st.session_state.update({"page": on_submit_page}), rerun()
-            ))
+            (lambda pressed: (st.session_state.update({"page": on_submit_page}) or rerun()) if pressed else None)(
+                st.button("Skicka självskattning", type="primary", disabled=not full, key="submit_survey")
+            )
 
 def render_chef_survey():
     render_survey_core("Självskattning (Chef)", INSTR_CHEF, CHEF_QUESTIONS, "chef_answers", "survey_page", "assessment")
@@ -540,7 +540,7 @@ def render_assessment():
         med  = int(scores_map.get(key,{}).get("medarbetare",0))
 
         left_html = [f"<div><h2 class='sec-h2'>{s['title']}</h2>"]
-        for p in s["text"].split("\\n\\n"):
+        for p in s["text"].split("\n\n"):
             left_html.append(f"<p>{p}</p>")
         left_html.append("</div>")
 
