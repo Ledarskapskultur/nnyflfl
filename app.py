@@ -125,51 +125,33 @@ IDX_MAP = {
 }
 
 # Instruktioner
-INSTR_CHEF = (
-    "**Chef**
+INSTR_CHEF = """**Chef**
 
-"
-    "Syftet med frågorna nedan är att du ska beskriva hur du kommunicerar med dina medarbetare i frågor som rör deras arbete.
+Syftet med frågorna nedan är att du ska beskriva hur du kommunicerar med dina medarbetare i frågor som rör deras arbete.
 
-"
-    "Använd följande svarsskala:
+Använd följande svarsskala:
 
-"
-    "**1 = Aldrig, 2 = Nästan aldrig, 3 = Sällan, 4 = Ibland, 5 = Ofta, 6 = Nästan alltid, 7 = Alltid**.
+**1 = Aldrig, 2 = Nästan aldrig, 3 = Sällan, 4 = Ibland, 5 = Ofta, 6 = Nästan alltid, 7 = Alltid**.
 
-"
-    "Ange hur ofta du gör följande:"
-)
-INSTR_EMP = (
-    "**Medarbetare**
+Ange hur ofta du gör följande:"""
+INSTR_EMP = """**Medarbetare**
 
-"
-    "Syftet med frågorna nedan är att du ska beskriva hur din chef kommunicerar med dig i frågor som rör ditt arbete.
+Syftet med frågorna nedan är att du ska beskriva hur din chef kommunicerar med dig i frågor som rör ditt arbete.
 
-"
-    "Använd följande svarsskala:
+Använd följande svarsskala:
 
-"
-    "**1 = Aldrig, 2 = Nästan aldrig, 3 = Sällan, 4 = Ibland, 5 = Ofta, 6 = Nästan alltid, 7 = Alltid**.
+**1 = Aldrig, 2 = Nästan aldrig, 3 = Sällan, 4 = Ibland, 5 = Ofta, 6 = Nästan alltid, 7 = Alltid**.
 
-"
-    "Ange hur ofta din chef gör följande:"
-)
-INSTR_OVER = (
-    "**Överordnad chef**
+Ange hur ofta din chef gör följande:"""
+INSTR_OVER = """**Överordnad chef**
 
-"
-    "Syftet med frågorna nedan är att du ska beskriva hur din underställda chef kommunicerar i arbetsrelaterade frågor.
+Syftet med frågorna nedan är att du ska beskriva hur din underställda chef kommunicerar i arbetsrelaterade frågor.
 
-"
-    "Använd följande svarsskala:
+Använd följande svarsskala:
 
-"
-    "**1 = Aldrig, 2 = Nästan aldrig, 3 = Sällan, 4 = Ibland, 5 = Ofta, 6 = Nästan alltid, 7 = Alltid**.
+**1 = Aldrig, 2 = Nästan aldrig, 3 = Sällan, 4 = Ibland, 5 = Ofta, 6 = Nästan alltid, 7 = Alltid**.
 
-"
-    "Ange hur ofta din underställda chef gör följande:"
-)
+Ange hur ofta din underställda chef gör följande:"""
 
 # =============================
 # PDF (matcha webblayout 68/32, rundade kort, tre staplar, ingen tidsstämpel, 2 radbryt före rubriker)
@@ -244,9 +226,7 @@ def build_pdf(title: str, sections, results_map, contact: dict) -> bytes:
         pdf.setFont("Helvetica", 11)
         y_left = section_top
         approx_chars = max(40, int(95 * (left_w / content_w)))
-        for para in str(s["text"]).split("
-
-"): 
+        for para in str(s["text"]).split("\n\n"):  
             for ln in textwrap.wrap(para, width=approx_chars):
                 y_left -= 16
             y_left -= 4
@@ -290,9 +270,7 @@ def build_pdf(title: str, sections, results_map, contact: dict) -> bytes:
         # Vänster: brödtext inom 68 %
         pdf.setFont("Helvetica", 11)
         y_left_draw = section_top
-        for para in str(s["text"]).split("
-
-"): 
+        for para in str(s["text"]).split("\n\n"):  
             for ln in textwrap.wrap(para, width=approx_chars):
                 y = ensure(16); pdf.drawString(margin, y_left_draw, ln); y_left_draw -= 16
             y_left_draw -= 4
@@ -516,9 +494,7 @@ def render_assessment():
         left, right = st.columns([0.68, 0.32])
         with left:
             st.header(s["title"])
-            for p in s["text"].split("
-
-"): 
+            for p in s["text"].split("\n\n"):  
                 st.write(p)
         with right:
             key, mx = s["key"], s["max"]
