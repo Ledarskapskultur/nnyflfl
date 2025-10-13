@@ -233,7 +233,7 @@ def build_pdf(title: str, sections, results_map, contact: dict) -> bytes:
         pdf.setFont("Helvetica", 11)
         y_left = section_top
         approx_chars = max(40, int(95 * (left_w / content_w)))
-        for para in str(s["text"]).split("\\n\\n"): 
+        for para in str(s["text"]).split("\n\n"): 
             for ln in textwrap.wrap(para, width=approx_chars):
                 y = ensure(16); pdf.drawString(margin, y_left_draw, ln); y_left_draw -= 16
             y_left_draw -= 4
@@ -433,21 +433,22 @@ def render_assessment():
     # Kontakt: 2×3 grid (Namn, Företag / E-post, Telefon / Funktion, Unikt id)
     st.markdown("<div class='contact-title'>Kontaktuppgifter</div>", unsafe_allow_html=True)
     base = st.session_state.get("kontakt", {})
-    st.markdown(
-        f"""
-        <div class="contact-card">
-          <div class="contact-grid">
-            <div><div class="label">Namn</div><div class="pill">{(base.get('Förnamn','') + ' ' + base.get('Efternamn','')).strip()}</div></div>
-            <div><div class="label">Företag</div><div class="pill">{base.get('Företag','')}</div></div>
-            <div><div class="label">E-post</div><div class="pill">{base.get('E-post','')}</div></div>
-            <div><div class="label">Telefon</div><div class="pill">{base.get('Telefon','')}</div></div>
-            <div><div class="label">Funktion</div><div class="pill">{base.get('Funktion','')}</div></div>
-            <div><div class="label">Unikt id</div><div class="pill">{base.get('Unikt id','')}</div></div>
-          </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    with st.container():
+        c1, c2 = st.columns(2)
+        with c1:
+            st.text_input("Förnamn", value=base.get("Förnamn",""), disabled=True)
+            st.text_input("Telefon", value=base.get("Telefon",""), disabled=True)
+            st.selectbox(
+                "Funktion",
+                ["Chef", "Överordnad chef", "Medarbetare"],
+                index=["Chef","Överordnad chef","Medarbetare"].index(base.get("Funktion","Chef")),
+                disabled=True,
+            )
+        with c2:
+            st.text_input("Efternamn", value=base.get("Efternamn",""), disabled=True)
+            st.text_input("Företag", value=base.get("Företag",""), disabled=True)
+            st.text_input("E-post", value=base.get("E-post",""), disabled=True)
+        st.text_input("Unikt id", value=base.get("Unikt id",""), disabled=True)
 
     # Linje före sektionerna
     st.markdown("---")
@@ -457,7 +458,7 @@ def render_assessment():
         left, right = st.columns([0.68, 0.32])
         with left:
             st.header(s["title"])
-            for p in s["text"].split("\\n\\n"): 
+            for p in s["text"].split("\n\n"): 
                 st.write(p)
         with right:
             key, mx = s["key"], s["max"]
