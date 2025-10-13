@@ -27,10 +27,22 @@ FLOW_POST_URL  = st.secrets.get("FLOW_POST_URL", "https://default1ad3791223f4412
 FLOW_FETCH_URL = st.secrets.get("FLOW_FETCH_URL", "")  # (valfritt) GET-endpoint som hämtar via uid
 
 
-def flow_send(payload: dict) -> bool:
-    """POST:a nyttolast till Power Automate-flödet. Returnerar True om 2xx."""
+def flow_send(payload: dict):
+    """POST:a nyttolast till Power Automate-flödet.
+    Returnerar (ok: bool, status_code: int|None, text: str)."""
     if not FLOW_POST_URL:
-        return False
+        return (False, None, "FLOW_POST_URL saknas")
+    try:
+        r = requests.post(
+            FLOW_POST_URL,
+            json=payload,
+            headers={"Content-Type": "application/json"},
+            timeout=20,
+        )
+        ok = 200 <= r.status_code < 300
+        return (ok, r.status_code, r.text)
+    except Exception as e:
+        return (False, None, str(e))
     try:
         r = requests.post(FLOW_POST_URL, json=payload, timeout=20)
         return 200 <= r.status_code < 300
@@ -476,7 +488,14 @@ def render_survey_core(title: str, instruction_md: str, questions: list[str], an
                     "answers": st.session_state[answers_key],
                     "scores": parts,
                 }
-                _ = flow_send(payload)
+                ok, status, resp_text = flow_send(payload)
+                if ok:
+                    st.toast("Svar skickat till Power Automate", icon="✅")
+                else:
+                    st.toast("Kunde inte skicka till Power Automate", icon="⚠️")
+                    with st.expander("Visa felsvar från flödet"):
+                        st.write(f"Status: {status}")
+                        st.code(resp_text or "(tomt svar)")
                 # Gå vidare
                 st.session_state["page"] = on_submit_page
                 rerun()
@@ -511,8 +530,7 @@ def render_thankyou():
 
 def render_assessment():
     # Om resultatsidan öppnas via URL med ?uid=..., hämta via GET-endpoint och populera (om konfigurerat)
-    qp = st.experimental_get_query_params()
-    uid_qp = (qp.get("uid", [None])[0])
+    uid_qp = st.query_params.get("uid")
     if uid_qp and ("scores" not in st.session_state or not st.session_state.get("kontakt")):
         data = flow_fetch(uid_qp)
         if isinstance(data, dict):
@@ -609,7 +627,7 @@ def render_assessment():
     # Dela-länk till resultatsidan via URL med uid
     uid_share = k.get("Unikt id")
     if uid_share:
-        st.experimental_set_query_params(uid=uid_share)
+        st.query_params["uid"] = uid_share
         st.info(f"Dela denna länk för att se resultatet igen: ?uid={uid_share}")
 
     if st.button("◀ Till startsidan"):
