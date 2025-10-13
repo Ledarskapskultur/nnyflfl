@@ -1,4 +1,4 @@
-# app.py – komplett app (svenska)
+# app.py – komplett app (svenska) med tacksida för Medarbetare/Överordnad
 from __future__ import annotations
 
 from io import BytesIO
@@ -59,6 +59,10 @@ st.markdown(f"""
            border-radius:12px; box-shadow:0 6px 20px rgba(0,0,0,.06); margin-bottom:14px; }}
   .hero h1 {{ font-size:34px; margin:0 0 8px 0; }}
   .hero p  {{ color:#374151; margin:0; }}
+
+  /* Tacksida */
+  .thanks {{ background:#fff; border:1px solid rgba(0,0,0,.12); border-radius:12px; padding:18px 20px;
+             box-shadow:0 6px 20px rgba(0,0,0,.06); }}
 </style>
 """, unsafe_allow_html=True)
 
@@ -240,7 +244,7 @@ def radio_row(key_prefix: str, i: int, current: int | None):
 # Sidor
 # ──────────────────────────────────────────────────────────────────────────────
 def landing():
-    # Hero-rubrik (återställd rubrikdel på startsidan)
+    # Hero-rubrik
     st.markdown(
         """
         <div class="hero">
@@ -316,7 +320,7 @@ def id_page():
 
     if st.button("◀ Tillbaka"): st.session_state["page"]="landing"; rerun()
 
-def survey_core(title: str, instruction: str, questions: List[str], answers_key: str, page_key: str):
+def survey_core(title: str, instruction: str, questions: List[str], answers_key: str, page_key: str, final_route: str):
     st.markdown(f"## {title}"); render_instruction(instruction)
 
     if st.session_state.get("scroll_to_top"):
@@ -342,18 +346,28 @@ def survey_core(title: str, instruction: str, questions: List[str], answers_key:
             if st.button("Nästa ▶", disabled=not ok_page):
                 st.session_state[page_key] = page + 1; st.session_state["scroll_to_top"] = True; rerun()
         else:
+            # Chef -> assessment; Medarbetare & Överordnad -> thankyou
             if st.button("Skicka självskattning", type="primary", disabled=not ok_page):
-                st.session_state["page"] = "assessment"; rerun()
+                st.session_state["page"] = final_route
+                rerun()
 
-def chef_survey():  survey_core("Självskattning (Chef)", INSTR_CHEF, CHEF_QUESTIONS, "chef_answers", "survey_page")
-def other_survey(): survey_core("Självskattning (Medarbetare)", INSTR_EMP, EMP_QUESTIONS, "other_answers", "other_page")
-def over_survey():  survey_core("Självskattning (Överordnad chef)", INSTR_OVER, OVER_QUESTIONS, "over_answers", "over_page")
+def chef_survey():  survey_core("Självskattning (Chef)", INSTR_CHEF, CHEF_QUESTIONS, "chef_answers", "survey_page", "assessment")
+def other_survey(): survey_core("Självskattning (Medarbetare)", INSTR_EMP, EMP_QUESTIONS, "other_answers", "other_page", "thankyou")
+def over_survey():  survey_core("Självskattning (Överordnad chef)", INSTR_OVER, OVER_QUESTIONS, "over_answers", "over_page", "thankyou")
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Resultat
+# Resultat (endast chef ser den här sidan)
 # ──────────────────────────────────────────────────────────────────────────────
 def assessment():
+    # vakt: bara för Chef
+    role = st.session_state.get("kontakt", {}).get("Funktion", "")
+    if role != "Chef":
+        st.warning("Den här sidan är endast tillgänglig för chefer.")
+        if st.button("Till startsidan"):
+            st.session_state["page"]="landing"; rerun()
+        return
+
     # summera
     scores = st.session_state.get("scores", {"lyssnande":{}, "aterkoppling":{}, "malinriktning":{}})
     if "chef_answers"  in st.session_state:
@@ -429,6 +443,25 @@ def assessment():
     st.download_button("Ladda ner PDF", data=pdf, file_name=pdf_name,
                        mime="application/pdf", type="primary")
 
+    if st.button("◀ Till startsidan"):
+        st.session_state["page"] = "landing"; rerun()
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Tacksida (för Medarbetare & Överordnad chef)
+# ──────────────────────────────────────────────────────────────────────────────
+def thankyou():
+    c = st.session_state.get("kontakt", {})
+    st.markdown("## Tack för din medverkan!")
+    st.markdown(
+        f"""
+        <div class="thanks">
+          <p>Tack för att du har svarat på självskattningen och bidragit med värdefull feedback.</p>
+          <p>Uppgifterna kopplas till chefens självskattning med det unika id:t <strong>{c.get('Unikt id','')}</strong>.</p>
+          <p>Du kan nu stänga fliken.</p>
+        </div>
+        """, unsafe_allow_html=True,
+    )
     if st.button("◀ Till startsidan"):
         st.session_state["page"] = "landing"; rerun()
 
@@ -525,6 +558,7 @@ ROUTES = {
     "chef_survey": chef_survey,
     "other_survey": other_survey,
     "over_survey": over_survey,
-    "assessment": assessment,
+    "assessment": assessment,   # endast chef
+    "thankyou": thankyou,       # medarbetare/överordnad
 }
 ROUTES[st.session_state["page"]]()
