@@ -46,7 +46,13 @@ st.markdown(
       .bar-green {{ background:#4CAF50; }}
       .bar-orange {{ background:#F5A524; }}
       .bar-blue {{ background:#3B82F6; }}
-      .maxline {{ font-size:13px; color:#374151; margin-top:12px; font-weight:600; }}
+      .maxline {{ font-size:13px; color:#374151; margin-top:12px; font-weight:600; }
+
+      /* Luta ned resultatkortet en aning för bättre balans */
+      .res-card{ margin-top:12px; }}
+
+      /* Sektionstitel (ersätter st.header för exakt spacing) */
+      .sec-h2 { font-size: 22px; font-weight: 700; margin: 10px 0 12px 0; }
 
       /* Info-ruta */
       .note {{ border-left: 6px solid #3B82F6; background:#EAF2FF; color:#0F172A;
@@ -274,7 +280,7 @@ def build_pdf(title: str, sections, results_map, contact: dict) -> bytes:
         card_w   = right_w - 10
         per_role = 12 + 10 + 14
         card_h   = card_pad + 3*per_role + 10 + card_pad
-        card_y   = section_top - card_h + 6
+        card_y   = section_top - card_h - 8
 
         pdf.setFillColor(HexColor("#FFFFFF"))
         pdf.setStrokeColor(HexColor("#D1D5DB"))
@@ -518,7 +524,7 @@ def render_assessment():
     for s in SECTIONS:
         left, right = st.columns([0.68, 0.32])
         with left:
-            st.header(s["title"])
+            st.markdown(f"<h2 class='sec-h2'>{s['title']}</h2>", unsafe_allow_html=True)
             for p in s["text"].split("\n\n"):
                 st.write(p)
         with right:
