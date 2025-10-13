@@ -235,8 +235,6 @@ def build_pdf(title: str, sections, results_map, contact: dict) -> bytes:
         y_probe = section_top
         approx_chars = max(40, int(95 * (left_w / content_w)))
         for para in str(s["text"]).split("\n\n"):
-
-"):
             for ln in textwrap.wrap(para, width=approx_chars):
                 y_probe -= 16
             y_probe -= 4
@@ -279,8 +277,6 @@ def build_pdf(title: str, sections, results_map, contact: dict) -> bytes:
         pdf.setFont("Helvetica", 11)
         y_left_draw = section_top
         for para in str(s["text"]).split("\n\n"):
-
-"):
             for ln in textwrap.wrap(para, width=approx_chars):
                 y = ensure(16)
                 pdf.drawString(margin, y_left_draw, ln)
