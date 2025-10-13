@@ -34,7 +34,7 @@ st.markdown(
       /* Kontaktkort */
       .contact-card {{ background:#fff; border:1px solid rgba(0,0,0,.12); border-radius:12px; padding:12px 14px; box-shadow:0 4px 16px rgba(0,0,0,.06); }}
       .contact-title {{ font-weight:700; font-size:19px; margin: 6px 0 10px 0; }}
-      .contact-grid {{ display:grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px 14px; }}
+      .contact-grid {{ display:grid; grid-template-columns: 1fr 1fr; gap: 12px 16px; }}
       .contact-grid .label {{ font-size:12px; color:#6B7280; margin-bottom:4px; }}
       .pill {{ background:#F8FAFC; padding:10px 12px; border-radius:8px; border:1px solid rgba(0,0,0,.06); }}
       .stTextInput>div>div>input {{ background:#F8FAFC; }}
@@ -522,6 +522,12 @@ def render_assessment():
         <div class="contact-card">
           <div class="contact-grid">
             <div><div class="label">Namn</div><div class="pill">{base.get('Namn','')}</div></div>
+            <div><div class="label">Företag</div><div class="pill">{base.get('Företag','')}</div></div>
+            <div><div class="label">E-post</div><div class="pill">{base.get('E-post','')}</div></div>
+            <div><div class="label">Telefon</div><div class="pill">{base.get('Telefon','')}</div></div>
+            <div><div class="label">Funktion</div><div class="pill">{base.get('Funktion','')}</div></div>
+            <div><div class="label">Unikt id</div><div class="pill">{base.get('Unikt id','')}</div></div>
+          </div></div>
             <div><div class="label">Företag</div><div class="pill">{base.get('Företag','')}</div></div>
             <div><div class="label">Funktion</div><div class="pill">{base.get('Funktion','')}</div></div>
             <div><div class="label">E-post</div><div class="pill">{base.get('E-post','')}</div></div>
