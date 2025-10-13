@@ -34,6 +34,9 @@ st.markdown(
       /* Kontaktkort */
       .contact-card {{ background:#fff; border:1px solid rgba(0,0,0,.12); border-radius:12px; padding:12px 14px; box-shadow:0 4px 16px rgba(0,0,0,.06); }}
       .contact-title {{ font-weight:700; font-size:19px; margin: 6px 0 10px 0; }}
+      .contact-grid {{ display:grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px 14px; }}
+      .contact-grid .label {{ font-size:12px; color:#6B7280; margin-bottom:4px; }}
+      .pill {{ background:#F8FAFC; padding:10px 12px; border-radius:8px; border:1px solid rgba(0,0,0,.06); }}
       .stTextInput>div>div>input {{ background:#F8FAFC; }}
 
       /* Resultatkort (högerkolumn 32%) */
@@ -513,20 +516,22 @@ def render_assessment():
 
     # Kontakt (låsta fält)
     st.markdown("<div class='contact-title'>Kontaktuppgifter</div>", unsafe_allow_html=True)
-    with st.container():
-        st.markdown("<div class='contact-card'>", unsafe_allow_html=True)
-        base = st.session_state.get("kontakt", {})
-        c1, c2, c3 = st.columns([0.4, 0.3, 0.3])
-        with c1:
-            st.text_input("Namn", value=base.get("Namn",""), disabled=True)
-            st.text_input("E-post", value=base.get("E-post",""), disabled=True)
-        with c2:
-            st.text_input("Företag", value=base.get("Företag",""), disabled=True)
-            st.text_input("Telefon", value=base.get("Telefon",""), disabled=True)
-        with c3:
-            st.text_input("Funktion", value=base.get("Funktion",""), disabled=True)
-            st.text_input("Unikt id", value=base.get("Unikt id",""), disabled=True)
-        st.markdown("</div>", unsafe_allow_html=True)
+    base = st.session_state.get("kontakt", {})
+    st.markdown(
+        f"""
+        <div class="contact-card">
+          <div class="contact-grid">
+            <div><div class="label">Namn</div><div class="pill">{base.get('Namn','')}</div></div>
+            <div><div class="label">Företag</div><div class="pill">{base.get('Företag','')}</div></div>
+            <div><div class="label">Funktion</div><div class="pill">{base.get('Funktion','')}</div></div>
+            <div><div class="label">E-post</div><div class="pill">{base.get('E-post','')}</div></div>
+            <div><div class="label">Telefon</div><div class="pill">{base.get('Telefon','')}</div></div>
+            <div><div class="label">Unikt id</div><div class="pill">{base.get('Unikt id','')}</div></div>
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
     # Lite luft så första H2 hamnar lägre (matchar PDF-känsla)
     st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
