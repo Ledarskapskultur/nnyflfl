@@ -233,57 +233,10 @@ def build_pdf(title: str, sections, results_map, contact: dict) -> bytes:
         pdf.setFont("Helvetica", 11)
         y_left = section_top
         approx_chars = max(40, int(95 * (left_w / content_w)))
-        for para in str(s["text"]).split("
-
-"):   for ln in textwrap.wrap(para, width=approx_chars):
-                y_left -= 16
-            y_left -= 4
-        left_span = section_top - y_left
-
-        # Höger: resultatkort
-        card_pad = 10
-        card_w   = right_w - 10
-        per_role = 12 + 10 + 14
-        card_h   = card_pad + 3*per_role + 10 + card_pad
-        card_y   = section_top - (left_span/2 + card_h/2)
-
-        pdf.setFillColor(HexColor("#FFFFFF"))
-        pdf.setStrokeColor(HexColor("#D1D5DB"))
-        try:
-            pdf.roundRect(right_x + 5, card_y, card_w, card_h, 12, stroke=1, fill=1)
-        except Exception:
-            pdf.rect(right_x + 5, card_y, card_w, card_h, stroke=1, fill=1)
-        pdf.setFillColor(black)
-
-        inner_x = right_x + 5 + card_pad
-        cy      = card_y + card_h - card_pad - 4
-
-        roles = [("Chef", "chef", HexColor("#22C55E")),
-                 ("Överordnad chef", "overchef", HexColor("#F59E0B")),
-                 ("Medarbetare", "medarbetare", HexColor("#3B82F6"))]
-
-        pdf.setFont("Helvetica", 10)
-        for label, key, col in roles:
-            val = int(results_map.get(s["key"], {}).get(key, 0))
-            mx  = int(s.get("max", 0))
-            pdf.drawString(inner_x, cy, f"{label}: {val} poäng"); cy -= 12
-            bar_w = card_w - 2*card_pad; bar_h = 10
-            pdf.setFillColor(HexColor("#E9ECEF")); pdf.rect(inner_x, cy, bar_w, bar_h, fill=1, stroke=0)
-            fill_w = 0 if mx == 0 else bar_w * (val / mx)
-            pdf.setFillColor(col); pdf.rect(inner_x, cy, fill_w, bar_h, fill=1, stroke=0)
-            pdf.setFillColor(black); cy -= 14
-        pdf.setFont("Helvetica-Bold", 10)
-        pdf.drawString(inner_x, card_y + card_pad, f"Max: {int(s.get('max',0))} poäng")
-
-        # Vänster: brödtext inom 68 %
-        pdf.setFont("Helvetica", 11)
-        y_left_draw = section_top
-        for para in str(s["text"]).split("
-
-"):    
+        for para in str(s["text"]).split("\n\n"):
             for ln in textwrap.wrap(para, width=approx_chars):
                 y = ensure(16); pdf.drawString(margin, y_left_draw, ln); y_left_draw -= 16
-            y_left_draw -= 4
+            y_left_draw -= 4ft_draw -= 4
 
         y = min(y_left_draw, card_y) - 16
 
@@ -504,9 +457,7 @@ def render_assessment():
         left, right = st.columns([0.68, 0.32])
         with left:
             st.header(s["title"])
-            for p in s["text"].split("
-
-"):    
+            for p in s["text"].split("\n\n"):
                 st.write(p)
         with right:
             key, mx = s["key"], s["max"]
