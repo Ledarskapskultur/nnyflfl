@@ -21,9 +21,16 @@ PRIMARY = "#EF4444"
 # =============================
 # Hjälpfunktioner
 # =============================
-def generate_unikt_id(n=8) -> str:
-    alphabet = string.ascii_uppercase + string.digits
-    return "".join(secrets.choice(alphabet) for _ in range(n))
+def generate_unikt_id() -> str:
+    """Skapar en 6-teckenskod med exakt 3 bokstäver (a–z, A–Z) och 3 siffror (0–9) i slumpmässig ordning."""
+    letters = string.ascii_letters  # a-z + A-Z
+    digits = string.digits          # 0-9
+    pool = [secrets.choice(letters) for _ in range(3)] + [secrets.choice(digits) for _ in range(3)]
+    # Fisher–Yates-shuffle med secrets.randbelow för kryptografiskt slump
+    for i in range(len(pool) - 1, 0, -1):
+        j = secrets.randbelow(i + 1)
+        pool[i], pool[j] = pool[j], pool[i]
+    return "".join(pool)
 
 def rerun():
     try:
@@ -226,7 +233,9 @@ def build_pdf(title: str, sections, results_map, contact: dict) -> bytes:
         pdf.setFont("Helvetica", 11)
         y_left = section_top
         approx_chars = max(40, int(95 * (left_w / content_w)))
-        for para in str(s["text"]).split("\n\n"):  
+        for para in str(s["text"]).split("
+
+"):  
             for ln in textwrap.wrap(para, width=approx_chars):
                 y_left -= 16
             y_left -= 4
@@ -270,7 +279,9 @@ def build_pdf(title: str, sections, results_map, contact: dict) -> bytes:
         # Vänster: brödtext inom 68 %
         pdf.setFont("Helvetica", 11)
         y_left_draw = section_top
-        for para in str(s["text"]).split("\n\n"):  
+        for para in str(s["text"]).split("
+
+"):  
             for ln in textwrap.wrap(para, width=approx_chars):
                 y = ensure(16); pdf.drawString(margin, y_left_draw, ln); y_left_draw -= 16
             y_left_draw -= 4
@@ -494,7 +505,9 @@ def render_assessment():
         left, right = st.columns([0.68, 0.32])
         with left:
             st.header(s["title"])
-            for p in s["text"].split("\n\n"):  
+            for p in s["text"].split("
+
+"):  
                 st.write(p)
         with right:
             key, mx = s["key"], s["max"]
