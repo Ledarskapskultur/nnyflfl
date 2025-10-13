@@ -402,7 +402,8 @@ def render_id_page():
         rerun()
 
 # Gemensam enkät-renderare (4 sidor × 5 frågor)
-def render_survey_core(title: str, instruction_md: str, questions: list[str], answers_key: str, page_key: str, on_submit_page: str):
+def render_survey_core(title: str, instruction_md: str, questions: list[str],
+                       answers_key: str, page_key: str, on_submit_page: str):
     st.markdown(f"## {title}")
     st.markdown(f"<div class='note'>{instruction_md}</div>", unsafe_allow_html=True)
     st.caption("Svara på varje påstående på en skala 1–7. Du måste besvara alla frågor på sidan för att gå vidare.")
@@ -413,58 +414,39 @@ def render_survey_core(title: str, instruction_md: str, questions: list[str], an
     start_idx = page*per_page
     end_idx   = start_idx+per_page
 
+    # Frågor
     for i in range(start_idx, end_idx):
         st.markdown(f"**{i+1}. {questions[i]}**")
         current = answers[i]
         idx = None
         if isinstance(current, int) and 1 <= current <= 7:
             idx = [1,2,3,4,5,6,7].index(current)
-        st.radio("", [1,2,3,4,5,6,7], index=idx, horizontal=True, label_visibility="collapsed", key=f"{answers_key}_{i}")
+        st.radio("", [1,2,3,4,5,6,7], index=idx, horizontal=True,
+                 label_visibility="collapsed", key=f"{answers_key}_{i}")
         st.session_state[answers_key][i] = st.session_state.get(f"{answers_key}_{i}")
         if i < end_idx-1:
             st.divider()
 
-    c1, c2 = st.columns(2)
-    with c1:
+    # Navigering
+    col1, col2 = st.columns(2)
+    with col1:
         if page > 0 and st.button("◀ Tillbaka"):
-            st.session_state[page_key] = page-1
-            rerun()
-    with c2:
+            st.session_state[page_key] = page - 1
+            st.rerun()
+
+    with col2:
         slice_vals = st.session_state[answers_key][start_idx:end_idx]
         full = all(isinstance(v, int) and 1 <= v <= 7 for v in slice_vals)
+
         if page < 3:
-            st.button("Nästa ▶", disabled=not full, on_click=lambda: (
-                st.session_state.update({page_key: page+1}), rerun()
-            ))
+            if st.button("Nästa ▶", disabled=not full):
+                st.session_state[page_key] = page + 1
+                st.rerun()
         else:
-            st.button("Skicka självskattning", type="primary", disabled=not full, on_click=lambda: (
-                st.session_state.update({"page": on_submit_page}), rerun()
-            ))
+            if st.button("Skicka självskattning", type="primary", disabled=not full):
+                st.session_state["page"] = on_submit_page
+                st.rerun()
 
-def render_chef_survey():
-    render_survey_core("Självskattning (Chef)", INSTR_CHEF, CHEF_QUESTIONS, "chef_answers", "survey_page", "assessment")
-
-def render_other_survey():
-    render_survey_core("Självskattning (Medarbetare)", INSTR_EMP, EMP_QUESTIONS, "other_answers", "other_page", "thankyou")
-
-def render_over_survey():
-    render_survey_core("Självskattning (Överordnad chef)", INSTR_OVER, OVER_QUESTIONS, "over_answers", "over_page", "thankyou")
-
-def render_thankyou():
-    st.markdown(
-        """
-        <div class="hero">
-          <h2>Tack för din medverkan!</h2>
-          <p>Dina svar har registrerats. Du kan nu stänga sidan.</p>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-    if st.button("Gå till startsidan"):
-        st.session_state["page"] = "landing"
-        rerun()
-
-def render_assessment():
     # Summera scorekartor
     scores = {"lyssnande":{}, "aterkoppling":{}, "malinriktning":{}}
 
