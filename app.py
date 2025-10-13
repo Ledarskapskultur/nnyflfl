@@ -234,7 +234,7 @@ def build_pdf(title: str, sections, results_map, contact: dict) -> bytes:
         # 1) Mät vänsterkolumnens höjd
         y_probe = section_top
         approx_chars = max(40, int(95 * (left_w / content_w)))
-        for para in str(s["text"]).split("
+        for para in str(s["text"]).split("\n\n"):
 
 "):
             for ln in textwrap.wrap(para, width=approx_chars):
@@ -278,7 +278,7 @@ def build_pdf(title: str, sections, results_map, contact: dict) -> bytes:
         # 3) Vänster: rita text inom 68 %
         pdf.setFont("Helvetica", 11)
         y_left_draw = section_top
-        for para in str(s["text"]).split("
+        for para in str(s["text"]).split("\n\n"):
 
 "):
             for ln in textwrap.wrap(para, width=approx_chars):
