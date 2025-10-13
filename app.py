@@ -546,7 +546,6 @@ if page == "landing":
 elif page == "id_page":
     render_id_page()
 elif page == "chef_survey":
-    render_chef_survey()
 elif page == "other_survey":
     render_other_survey()
 elif page == "over_survey":
