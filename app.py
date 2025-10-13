@@ -203,6 +203,7 @@ def build_pdf(title: str, sections, results_map, contact: dict) -> bytes:
 
     margin = 50
     y = h - 60
+    y -= 28*2
 
     # H1 (ingen tidsstämpel)
     pdf.setFont("Helvetica-Bold", 22)
@@ -233,6 +234,7 @@ def build_pdf(title: str, sections, results_map, contact: dict) -> bytes:
             pdf.showPage()
             paint_bg()
             yy = h - 60
+            yy -= 28*2
             pdf.setFont("Helvetica-Bold", 22)
             pdf.drawString(margin, yy, title)
             y = yy - 28
@@ -255,6 +257,7 @@ def build_pdf(title: str, sections, results_map, contact: dict) -> bytes:
             pdf.showPage()
             paint_bg()
             yy = h - 60
+            yy -= 28*2
             pdf.setFont("Helvetica-Bold", 22); pdf.drawString(margin, yy, title)
             y = yy - 28
 
