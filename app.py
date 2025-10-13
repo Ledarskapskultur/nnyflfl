@@ -1,11 +1,10 @@
 from io import BytesIO
-from datetime import datetime
-import string, secrets, textwrap
+import textwrap, secrets, string
 
 import streamlit as st
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
-from reportlab.lib.colors import HexColor, black, Color
+from reportlab.lib.colors import HexColor, black
 
 # =============================
 # Grundinställningar / tema
@@ -17,44 +16,7 @@ st.set_page_config(
 )
 
 EGGSHELL = "#FAF7F0"
-st.markdown(
-    f"""
-    <style>
-      .stApp {{ background-color: {EGGSHELL}; }}
-      .block-container {{ padding-top: 2rem; padding-bottom: 3rem; }}
-      html, body, [class*="css"] {{ font-family: Helvetica, Arial, sans-serif; }}
-      .stMarkdown h1 {{ font-size: 29px; font-weight: 700; margin: 0 0 6px 0; }}
-      .stMarkdown h2 {{ font-size: 20px; font-weight: 700; margin: 26px 0 10px 0; }}
-      .stMarkdown p, .stMarkdown {{ font-size: 15px; line-height: 21px; }}
-
-      /* Hero */
-      .hero {{ text-align:center; padding:34px 28px; background:#fff;
-               border-radius:14px; border:1px solid rgba(0,0,0,.08); box-shadow:0 6px 20px rgba(0,0,0,.06); }}
-
-      /* Kontaktkort */
-      .contact-card {{ background:#fff; border:1px solid rgba(0,0,0,.12); border-radius:12px; padding:12px 14px; box-shadow:0 4px 16px rgba(0,0,0,.06); }}
-      .contact-title {{ font-weight:700; font-size:19px; margin: 6px 0 10px 0; }}
-      .stTextInput>div>div>input {{ background:#F8FAFC; }}
-
-      /* Resultatkort (högerkolumn 32%) */
-      .right-wrap {{ display:flex; align-items:flex-start; justify-content:center; }}
-      .res-card {{ max-width:380px; width:100%; padding:16px 18px; border:1px solid rgba(0,0,0,.12);
-                   border-radius:12px; box-shadow:0 6px 20px rgba(0,0,0,.08); background:#fff; }}
-      .role-label {{ font-size:13px; color:#111827; margin:10px 0 6px 0; display:block; font-weight:600; }}
-      .barbg {{ width:100%; height:10px; background:#E9ECEF; border-radius:6px; overflow:hidden; }}
-      .barfill {{ height:10px; display:block; }}
-      .bar-green {{ background:#4CAF50; }}
-      .bar-orange {{ background:#F5A524; }}
-      .bar-blue {{ background:#3B82F6; }}
-      .maxline {{ font-size:13px; color:#374151; margin-top:12px; font-weight:600; }}
-
-      /* Info-ruta */
-      .note {{ border-left: 6px solid #3B82F6; background:#EAF2FF; color:#0F172A;
-               padding:14px 16px; border-radius:10px; }}
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
+PRIMARY = "#EF4444"
 
 # =============================
 # Hjälpfunktioner
@@ -186,8 +148,9 @@ INSTR_OVER = (
 )
 
 # =============================
-# PDF (matcha webblayout 68/32, kort till höger, ingen tidsstämpel)
+# PDF (matcha webblayout 68/32, rundade kort, tre staplar, ingen tidsstämpel, 2 radbryt före rubriker)
 # =============================
+
 def build_pdf(title: str, sections, results_map, contact: dict) -> bytes:
     buf = BytesIO()
     pdf = canvas.Canvas(buf, pagesize=A4)
@@ -198,21 +161,20 @@ def build_pdf(title: str, sections, results_map, contact: dict) -> bytes:
         pdf.rect(0, 0, w, h, fill=1, stroke=0)
         pdf.setFillColor(black)
 
+    def page_header():
+        y = h - 60
+        # två radbryt ovanför rubriken
+        y -= 28*2
+        pdf.setFont("Helvetica-Bold", 22)
+        pdf.drawString(50, y, title)
+        return y - 28
+
     paint_bg()
-    pdf.setTitle("självskattning_funktionellt_ledarskap.pdf")
+    y = page_header()
 
-    margin = 50
-    y = h - 60
-
-    # H1 (ingen tidsstämpel)
-    pdf.setFont("Helvetica-Bold", 22)
-    pdf.drawString(margin, y, title)
-    y -= 28
-
-    # Kontaktuppgifter – två rader i ordning: Namn|Företag|Telefon  /  E-post|Unikt id
+    # Kontakt – två rader, ingen tidsstämpel
     pdf.setFont("Helvetica-Bold", 10)
-    pdf.drawString(margin, y, "Kontaktuppgifter")
-    y -= 14
+    pdf.drawString(50, y, "Kontaktuppgifter"); y -= 14
     pdf.setFont("Helvetica", 10)
     line1 = "   |   ".join([
         f"Namn: {contact.get('Namn','')}",
@@ -223,55 +185,53 @@ def build_pdf(title: str, sections, results_map, contact: dict) -> bytes:
         f"E-post: {contact.get('E-post','')}",
         f"Unikt id: {contact.get('Unikt id','')}",
     ])
-    pdf.drawString(margin, y, line1); y -= 14
-    pdf.drawString(margin, y, line2); y -= 24
-    y -= 6  # lite extra luft så första H2 hamnar lägre
+    pdf.drawString(50, y, line1); y -= 14
+    pdf.drawString(50, y, line2); y -= 24
 
     def ensure(px: int):
         nonlocal y
         if y - px < 50:
             pdf.showPage()
             paint_bg()
-            yy = h - 60
-            pdf.setFont("Helvetica-Bold", 22)
-            pdf.drawString(margin, yy, title)
-            y = yy - 28
-
-    # Färger progressbars
-    bar_bg  = Color(0.91, 0.92, 0.94)    # #E9ECEF
-    col_chef = Color(0.30, 0.69, 0.31)   # #4CAF50
-    col_over = Color(0.96, 0.65, 0.15)   # #F5A524
-    col_med  = Color(0.23, 0.51, 0.96)   # #3B82F6
+            y2 = page_header()
+            return y2
+        return y
 
     # 68/32 kolumner
+    margin = 50
     content_w = w - 2*margin
     left_w    = content_w * 0.68
     right_w   = content_w - left_w
     right_x   = margin + left_w
 
     for s in sections:
-        # Sidbryt före Målinriktning
+        # Sidbryt innan Målinriktning
         if s["title"] == "Målinriktning":
-            pdf.showPage()
-            paint_bg()
-            yy = h - 60
-            pdf.setFont("Helvetica-Bold", 22); pdf.drawString(margin, yy, title)
-            y = yy - 28
+            pdf.showPage(); paint_bg(); y = page_header()
 
-        ensure(40)
+        y = ensure(40)
         # H2
         pdf.setFont("Helvetica-Bold", 14)
-        pdf.drawString(margin, y, s["title"])
-        y -= 20
+        pdf.drawString(margin, y, s["title"]); y -= 20
 
-        section_top = y  # brödtextens topp
+        section_top = y
 
-        # Höger: resultatkort (linjerat med brödtextens topp)
+        # Beräkna vänsterkolumnhöjd för vertikal centrering av kort
+        pdf.setFont("Helvetica", 11)
+        y_left = section_top
+        approx_chars = max(40, int(95 * (left_w / content_w)))
+        for para in str(s["text"]).split("\n\n"):
+            for ln in textwrap.wrap(para, width=approx_chars):
+                y_left -= 16
+            y_left -= 4
+        left_span = section_top - y_left
+
+        # Höger: resultatkort
         card_pad = 10
         card_w   = right_w - 10
         per_role = 12 + 10 + 14
         card_h   = card_pad + 3*per_role + 10 + card_pad
-        card_y   = section_top - card_h + 6
+        card_y   = section_top - (left_span/2 + card_h/2)
 
         pdf.setFillColor(HexColor("#FFFFFF"))
         pdf.setStrokeColor(HexColor("#D1D5DB"))
@@ -284,9 +244,9 @@ def build_pdf(title: str, sections, results_map, contact: dict) -> bytes:
         inner_x = right_x + 5 + card_pad
         cy      = card_y + card_h - card_pad - 4
 
-        roles = [("Chef", "chef", col_chef),
-                 ("Överordnad chef", "overchef", col_over),
-                 ("Medarbetare", "medarbetare", col_med)]
+        roles = [("Chef", "chef", HexColor("#22C55E")),
+                 ("Överordnad chef", "overchef", HexColor("#F59E0B")),
+                 ("Medarbetare", "medarbetare", HexColor("#3B82F6"))]
 
         pdf.setFont("Helvetica", 10)
         for label, key, col in roles:
@@ -294,7 +254,7 @@ def build_pdf(title: str, sections, results_map, contact: dict) -> bytes:
             mx  = int(s.get("max", 0))
             pdf.drawString(inner_x, cy, f"{label}: {val} poäng"); cy -= 12
             bar_w = card_w - 2*card_pad; bar_h = 10
-            pdf.setFillColor(bar_bg); pdf.rect(inner_x, cy, bar_w, bar_h, fill=1, stroke=0)
+            pdf.setFillColor(HexColor("#E9ECEF")); pdf.rect(inner_x, cy, bar_w, bar_h, fill=1, stroke=0)
             fill_w = 0 if mx == 0 else bar_w * (val / mx)
             pdf.setFillColor(col); pdf.rect(inner_x, cy, fill_w, bar_h, fill=1, stroke=0)
             pdf.setFillColor(black); cy -= 14
@@ -303,14 +263,13 @@ def build_pdf(title: str, sections, results_map, contact: dict) -> bytes:
 
         # Vänster: brödtext inom 68 %
         pdf.setFont("Helvetica", 11)
-        y_left = section_top
-        approx_chars = max(40, int(95 * (left_w / content_w)))
+        y_left_draw = section_top
         for para in str(s["text"]).split("\n\n"):
             for ln in textwrap.wrap(para, width=approx_chars):
-                ensure(16); pdf.drawString(margin, y_left, ln); y_left -= 16
-            y_left -= 4
+                y = ensure(16); pdf.drawString(margin, y_left_draw, ln); y_left_draw -= 16
+            y_left_draw -= 4
 
-        y = min(y_left, card_y) - 16
+        y = min(y_left_draw, card_y) - 16
 
     pdf.showPage()
     pdf.save()
@@ -320,6 +279,7 @@ def build_pdf(title: str, sections, results_map, contact: dict) -> bytes:
 # =============================
 # Sidor
 # =============================
+
 def render_landing():
     st.markdown(
         """
@@ -332,15 +292,15 @@ def render_landing():
     )
 
     base = st.session_state.get("kontakt", {"Namn":"", "Företag":"", "Telefon":"", "E-post":"", "Funktion":"Chef", "Unikt id":""})
-    with st.form("landing"):
+    with st.form("landing_form"):
         c1, c2 = st.columns(2)
         with c1:
-            namn = st.text_input("Namn", value=base["Namn"])
-            tel  = st.text_input("Telefon", value=base["Telefon"])
+            namn = st.text_input("Namn", value=base["Namn"])            
+            tel  = st.text_input("Telefon", value=base["Telefon"])       
             fun  = st.selectbox("Funktion", ["Chef", "Överordnad chef", "Medarbetare"], index=["Chef","Överordnad chef","Medarbetare"].index(base["Funktion"]))
         with c2:
-            fore = st.text_input("Företag", value=base["Företag"])
-            mail = st.text_input("E-post", value=base["E-post"])
+            fore = st.text_input("Företag", value=base["Företag"])      
+            mail = st.text_input("E-post", value=base["E-post"])        
 
         start = st.form_submit_button("Starta", type="primary")
 
@@ -348,23 +308,22 @@ def render_landing():
         if not namn.strip() or not mail.strip():
             st.warning("Fyll i minst **Namn** och **E-post**.")
             return
-        # Spara
         st.session_state["kontakt"] = {
             "Namn": namn.strip(),
             "Företag": fore.strip(),
             "Telefon": tel.strip(),
             "E-post": mail.strip(),
             "Funktion": fun,
-            "Unikt id": generate_unikt_id() if fun == "Chef" else "",
+            "Unikt id": generate_unikt_id() if fun == "Chef" else base.get("Unikt id",""),
         }
-        # Startflöde
         if fun == "Chef":
             st.session_state["chef_answers"] = [None]*len(CHEF_QUESTIONS)
             st.session_state["survey_page"] = 0
             st.session_state["page"] = "chef_survey"
         else:
-            st.session_state["page"] = "id_page"  # unikt id + (ev) chefens förnamn
+            st.session_state["page"] = "id_page"
         rerun()
+
 
 def render_id_page():
     st.markdown("## Ange uppgifter för chefens självskattning")
@@ -402,6 +361,7 @@ def render_id_page():
         rerun()
 
 # Gemensam enkät-renderare (4 sidor × 5 frågor)
+
 def render_survey_core(title: str, instruction_md: str, questions: list[str], answers_key: str, page_key: str, on_submit_page: str):
     st.markdown(f"## {title}")
     st.markdown(f"<div class='note'>{instruction_md}</div>", unsafe_allow_html=True)
@@ -433,22 +393,28 @@ def render_survey_core(title: str, instruction_md: str, questions: list[str], an
         slice_vals = st.session_state[answers_key][start_idx:end_idx]
         full = all(isinstance(v, int) and 1 <= v <= 7 for v in slice_vals)
         if page < 3:
-            st.button("Nästa ▶", disabled=not full, on_click=lambda: (
-                st.session_state.update({page_key: page+1}), rerun()
-            ))
+            pressed = st.button("Nästa ▶", disabled=not full)
+            if pressed:
+                st.session_state[page_key] = page+1
+                rerun()
         else:
-            st.button("Skicka självskattning", type="primary", disabled=not full, on_click=lambda: (
-                st.session_state.update({"page": on_submit_page}), rerun()
-            ))
+            pressed = st.button("Skicka självskattning", type="primary", disabled=not full)
+            if pressed:
+                st.session_state["page"] = on_submit_page
+                rerun()
+
 
 def render_chef_survey():
     render_survey_core("Självskattning (Chef)", INSTR_CHEF, CHEF_QUESTIONS, "chef_answers", "survey_page", "assessment")
 
+
 def render_other_survey():
     render_survey_core("Självskattning (Medarbetare)", INSTR_EMP, EMP_QUESTIONS, "other_answers", "other_page", "thankyou")
 
+
 def render_over_survey():
     render_survey_core("Självskattning (Överordnad chef)", INSTR_OVER, OVER_QUESTIONS, "over_answers", "over_page", "thankyou")
+
 
 def render_thankyou():
     st.markdown(
@@ -463,6 +429,7 @@ def render_thankyou():
     if st.button("Gå till startsidan"):
         st.session_state["page"] = "landing"
         rerun()
+
 
 def render_assessment():
     # Summera scorekartor
@@ -488,30 +455,31 @@ def render_assessment():
 
     st.session_state["scores"] = scores
 
-    # Titel
     st.markdown(f"# {PAGE_TITLE}")
 
-    # Kontakt (låsta fält)
+    # Kontakt: 2×3 grid (Namn, Företag / E-post, Telefon / Funktion, Unikt id)
     st.markdown("<div class='contact-title'>Kontaktuppgifter</div>", unsafe_allow_html=True)
-    with st.container():
-        st.markdown("<div class='contact-card'>", unsafe_allow_html=True)
-        base = st.session_state.get("kontakt", {})
-        c1, c2, c3 = st.columns([0.4, 0.3, 0.3])
-        with c1:
-            st.text_input("Namn", value=base.get("Namn",""), disabled=True)
-            st.text_input("E-post", value=base.get("E-post",""), disabled=True)
-        with c2:
-            st.text_input("Företag", value=base.get("Företag",""), disabled=True)
-            st.text_input("Telefon", value=base.get("Telefon",""), disabled=True)
-        with c3:
-            st.text_input("Funktion", value=base.get("Funktion",""), disabled=True)
-            st.text_input("Unikt id", value=base.get("Unikt id",""), disabled=True)
-        st.markdown("</div>", unsafe_allow_html=True)
+    base = st.session_state.get("kontakt", {})
+    st.markdown(
+        f"""
+        <div class="contact-card">
+          <div class="contact-grid">
+            <div><div class="label">Namn</div><div class="pill">{base.get('Namn','')}</div></div>
+            <div><div class="label">Företag</div><div class="pill">{base.get('Företag','')}</div></div>
+            <div><div class="label">E-post</div><div class="pill">{base.get('E-post','')}</div></div>
+            <div><div class="label">Telefon</div><div class="pill">{base.get('Telefon','')}</div></div>
+            <div><div class="label">Funktion</div><div class="pill">{base.get('Funktion','')}</div></div>
+            <div><div class="label">Unikt id</div><div class="pill">{base.get('Unikt id','')}</div></div>
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
-    # Lite luft så första H2 hamnar lägre (matchar PDF-känsla)
-    st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
+    # Linje före sektionerna
+    st.markdown("---")
 
-    # Sektioner 68/32
+    # Sektioner 68/32 med centrerade kort
     for s in SECTIONS:
         left, right = st.columns([0.68, 0.32])
         with left:
@@ -540,7 +508,6 @@ def render_assessment():
             st.markdown("</div>", unsafe_allow_html=True)
 
     # PDF
-    st.divider()
     k = st.session_state.get("kontakt", {})
     pdf_bytes = build_pdf(PAGE_TITLE, SECTIONS, scores, k)
     pdf_name = f"Självskattning - {k.get('Namn') or 'Person'} - {k.get('Företag') or 'Företag'}.pdf"
@@ -549,6 +516,50 @@ def render_assessment():
     if st.button("◀ Till startsidan"):
         st.session_state["page"] = "landing"
         rerun()
+
+# =============================
+# CSS (dubbla klamrar i f-string)
+# =============================
+st.markdown(
+    f"""
+    <style>
+      .stApp {{ background-color: {EGGSHELL}; }}
+      .block-container {{ padding-top: 2rem; padding-bottom: 3rem; }}
+      html, body, [class*="css"] {{ font-family: Helvetica, Arial, sans-serif; }}
+      .stMarkdown h1 {{ font-size: 29px; font-weight: 700; margin: 0 0 6px 0; }}
+      .stMarkdown h2 {{ font-size: 20px; font-weight: 700; margin: 26px 0 10px 0; }}
+      .stMarkdown p, .stMarkdown {{ font-size: 15px; line-height: 21px; }}
+
+      /* Hero */
+      .hero {{ text-align:center; padding:34px 28px; background:#fff;
+               border-radius:14px; border:1px solid rgba(0,0,0,.08); box-shadow:0 6px 20px rgba(0,0,0,.06); }}
+
+      /* Kontaktkort */
+      .contact-card {{ background:#fff; border:1px solid rgba(0,0,0,.12); border-radius:12px; padding:12px 14px; box-shadow:0 4px 16px rgba(0,0,0,.06); }}
+      .contact-title {{ font-weight:700; font-size:19px; margin: 6px 0 10px 0; }}
+      .contact-grid {{ display:grid; grid-template-columns: 1fr 1fr; gap: 12px 16px; }}
+      .contact-grid .label {{ font-size:12px; color:#6B7280; margin-bottom:4px; }}
+      .pill {{ background:#F8FAFC; padding:10px 12px; border-radius:8px; border:1px solid rgba(0,0,0,.06); }}
+
+      /* Resultatkort (högerkolumn 32%) */
+      .section-row {{ display:grid; grid-template-columns: 0.68fr 0.32fr; column-gap:24px; align-items:center; }}
+      .right-wrap {{ display:flex; align-items:center; justify-content:center; }}
+      .res-card {{ max-width:380px; width:100%; padding:16px 18px; border:1px solid rgba(0,0,0,.12);
+                   border-radius:12px; box-shadow:0 6px 20px rgba(0,0,0,.08); background:#fff; }}
+      .role-label {{ font-size:13px; color:#111827; margin:10px 0 6px 0; display:block; font-weight:600; }}
+      .barbg {{ width:100%; height:10px; background:#E9ECEF; border-radius:6px; overflow:hidden; }}
+      .barfill {{ height:10px; display:block; }}
+      .bar-green {{ background:#22C55E; }}
+      .bar-orange {{ background:#F59E0B; }}
+      .bar-blue {{ background:#3B82F6; }}
+      .maxline {{ font-size:13px; color:#374151; margin-top:12px; font-weight:600; }}
+
+      /* Download-knapp */
+      .stDownloadButton>button {{ background:{PRIMARY}; border-color:{PRIMARY}; }}
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
 # =============================
 # Router (starta alltid på landningssidan)
