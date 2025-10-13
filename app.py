@@ -1,4 +1,4 @@
-# app.py – full app med sidor + enkäter + assessment
+# app.py – komplett app (svenska)
 from __future__ import annotations
 
 from io import BytesIO
@@ -7,7 +7,7 @@ import os
 import secrets
 import string
 import textwrap
-from typing import Dict, List, Tuple
+from typing import List, Tuple
 
 import requests
 import streamlit as st
@@ -17,7 +17,7 @@ from reportlab.pdfgen import canvas
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Bas & tema
+# Grundinställningar & tema
 # ──────────────────────────────────────────────────────────────────────────────
 st.set_page_config(page_title="Självskattning – Funktionellt ledarskap",
                    page_icon="📄", layout="centered")
@@ -51,14 +51,20 @@ st.markdown(f"""
   .bar-blue {{ background:#3B82F6; }}
   .maxline {{ font-size:13px; color:#374151; margin-top:12px; font-weight:600; }}
 
-  /* Viktigt: sänker resultatkortet till brödtextens topp */
+  /* Viktigt: sänker resultatkortet till brödtextens topp (inte rubriken) */
   .spacer-h2 {{ height: 34px; }}
+
+  /* Hero (rubriken på startsidan) */
+  .hero {{ text-align:center; padding:34px 28px; background:#fff; border:1px solid rgba(0,0,0,.12);
+           border-radius:12px; box-shadow:0 6px 20px rgba(0,0,0,.06); margin-bottom:14px; }}
+  .hero h1 {{ font-size:34px; margin:0 0 8px 0; }}
+  .hero p  {{ color:#374151; margin:0; }}
 </style>
 """, unsafe_allow_html=True)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Power Automate – valfritt
+# Power Automate (valfritt – sätt miljövariablerna FLOW_LOOKUP_URL / FLOW_LOG_URL)
 # ──────────────────────────────────────────────────────────────────────────────
 FLOW_LOOKUP_URL = os.getenv("FLOW_LOOKUP_URL", "").strip()
 FLOW_LOG_URL    = os.getenv("FLOW_LOG_URL", "").strip()
@@ -79,7 +85,7 @@ def safe_post(url: str, payload: dict) -> Tuple[bool, dict | None, str | None]:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Innehåll
+# Texter, frågor & grupper
 # ──────────────────────────────────────────────────────────────────────────────
 PAGE_TITLE = "Självskattning – Funktionellt ledarskap"
 
@@ -207,7 +213,7 @@ ROLE_ORDER  = ["chef", "overchef", "medarbetare"]
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Hjälp
+# Hjälpfunktioner
 # ──────────────────────────────────────────────────────────────────────────────
 def generate_unikt_id(n: int = 8) -> str:
     alphabet = string.ascii_uppercase + string.digits
@@ -234,11 +240,17 @@ def radio_row(key_prefix: str, i: int, current: int | None):
 # Sidor
 # ──────────────────────────────────────────────────────────────────────────────
 def landing():
+    # Hero-rubrik (återställd rubrikdel på startsidan)
     st.markdown(
         """
-        <div class="note">Fyll i dina uppgifter nedan och starta självskattningen.</div>
-        """, unsafe_allow_html=True
+        <div class="hero">
+          <h1>Självskattning – Funktionellt ledarskap</h1>
+          <p>Fyll i dina uppgifter nedan och starta självskattningen.</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
     )
+
     d = st.session_state.get("kontakt", {"Namn":"","Företag":"","Telefon":"","E-post":"","Funktion":"Chef","Unikt id":""})
     with st.form("landing"):
         c1, c2 = st.columns([0.5, 0.5])
@@ -339,7 +351,7 @@ def over_survey():  survey_core("Självskattning (Överordnad chef)", INSTR_OVER
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Assessment (resultat)
+# Resultat
 # ──────────────────────────────────────────────────────────────────────────────
 def assessment():
     # summera
@@ -363,7 +375,7 @@ def assessment():
 
     st.markdown(f"# {PAGE_TITLE}")
 
-    # Kontakt upp – låsta
+    # Kontakt (låsta fält)
     st.markdown("<div class='contact-title'>Kontaktuppgifter</div>", unsafe_allow_html=True)
     with st.container():
         st.markdown("<div class='contact-card'>", unsafe_allow_html=True)
@@ -380,7 +392,7 @@ def assessment():
             st.text_input("Unikt id", value=base.get("Unikt id",""), disabled=True)
         st.markdown("</div>", unsafe_allow_html=True)
 
-    # Sektioner – resultatkort ska linjera med brödtexten (spacer i högerkolumn)
+    # Sektioner – 68/32 + resultatkort linjerat med brödtext
     for s in SECTIONS:
         left, right = st.columns([0.68, 0.32])
         with left:
@@ -388,7 +400,7 @@ def assessment():
             for p in s["text"].split("\n\n"):
                 st.write(p)
         with right:
-            st.markdown("<div class='spacer-h2'></div>", unsafe_allow_html=True)  # <- flyttar ned kortet
+            st.markdown("<div class='spacer-h2'></div>", unsafe_allow_html=True)
             key, mx = s["key"], s["max"]
             chef = int(scores.get(key,{}).get("chef",0))
             over = int(scores.get(key,{}).get("overchef",0))
@@ -412,7 +424,6 @@ def assessment():
     st.divider()
     st.caption("Ladda ner PDF som speglar sidan (samma 68/32-linje).")
     pdf = build_pdf(PAGE_TITLE, SECTIONS, scores, st.session_state.get("kontakt", {}))
-    # Dynamiskt namn:
     k = st.session_state.get("kontakt", {})
     pdf_name = f"Självskattning - {k.get('Namn') or 'Person'} - {k.get('Företag') or 'Företag'}.pdf"
     st.download_button("Ladda ner PDF", data=pdf, file_name=pdf_name,
@@ -423,7 +434,7 @@ def assessment():
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# PDF – 68/32 kolumn, staplar i linje med brödtext
+# PDF – två kolumner 68/32, staplar i linje med brödtext
 # ──────────────────────────────────────────────────────────────────────────────
 def build_pdf(title: str, sections, results_map, contact: dict) -> bytes:
     buf = BytesIO()
@@ -476,7 +487,7 @@ def build_pdf(title: str, sections, results_map, contact: dict) -> bytes:
 
         y_top = y  # samma start för båda kolumner
 
-        # Höger: staplar i linje med brödtext (börjar på y_top)
+        # Höger: staplar i linje med brödtext
         y_right = y_top
         pdf.setFont("Helvetica", 10)
         for role, col in [("chef", green), ("overchef", orange), ("medarbetare", blue)]:
@@ -492,15 +503,13 @@ def build_pdf(title: str, sections, results_map, contact: dict) -> bytes:
         # Vänster: brödtext inom left_w
         pdf.setFont("Helvetica", 11)
         y_left = y_top
-        # Enkel approx för wrapping i kolumnbredd
-        approx_chars = max(40, int(95 * (left_w / content_w)))
+        approx_chars = max(40, int(95 * (left_w / content_w)))  # enkel approx för wrap
         for para in s["text"].split("\n\n"):
             for ln in textwrap.wrap(para, width=approx_chars):
                 ensure(16); pdf.drawString(margin, y_left, ln); y_left -= 16
             y_left -= 4
 
-        # Nästa sektion under lägsta punkt
-        y = min(y_left, y_right) - 12
+        y = min(y_left, y_right) - 12  # nästa sektion under lägsta punkt
 
     pdf.showPage(); pdf.save(); buf.seek(0); return buf.getvalue()
 
