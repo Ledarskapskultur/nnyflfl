@@ -49,10 +49,10 @@ st.markdown(
       .maxline {{ font-size:13px; color:#374151; margin-top:12px; font-weight:600; }
 
       /* Luta ned resultatkortet en aning för bättre balans */
-      .res-card{ margin-top:12px; }}
+      .res-card {{ margin-top:12px; }}
 
       /* Sektionstitel (ersätter st.header för exakt spacing) */
-      .sec-h2 { font-size: 22px; font-weight: 700; margin: 10px 0 12px 0; }
+      .sec-h2 {{ font-size: 22px; font-weight: 700; margin: 10px 0 12px 0; }}
 
       /* Info-ruta */
       .note {{ border-left: 6px solid #3B82F6; background:#EAF2FF; color:#0F172A;
