@@ -244,7 +244,9 @@ def build_pdf(title: str, sections, results_map, contact: dict) -> bytes:
         pdf.setFont("Helvetica", 11)
         y_left = section_top
         approx_chars = max(40, int(95 * (left_w / content_w)))
-        for para in str(s["text"]).split("\n\n"): 
+        for para in str(s["text"]).split("
+
+"): 
             for ln in textwrap.wrap(para, width=approx_chars):
                 y_left -= 16
             y_left -= 4
@@ -288,7 +290,9 @@ def build_pdf(title: str, sections, results_map, contact: dict) -> bytes:
         # Vänster: brödtext inom 68 %
         pdf.setFont("Helvetica", 11)
         y_left_draw = section_top
-        for para in str(s["text"]).split("\n\n"): 
+        for para in str(s["text"]).split("
+
+"): 
             for ln in textwrap.wrap(para, width=approx_chars):
                 y = ensure(16); pdf.drawString(margin, y_left_draw, ln); y_left_draw -= 16
             y_left_draw -= 4
@@ -512,7 +516,9 @@ def render_assessment():
         left, right = st.columns([0.68, 0.32])
         with left:
             st.header(s["title"])
-            for p in s["text"].split("\n\n"): 
+            for p in s["text"].split("
+
+"): 
                 st.write(p)
         with right:
             key, mx = s["key"], s["max"]
@@ -532,7 +538,7 @@ def render_assessment():
             card += bar("Överordnad chef", over, mx, "bar-orange")
             card += bar("Medarbetare", med, mx, "bar-blue")
             card += [f"<div class='maxline'>Max: {mx} poäng</div>", "</div>"]
-            st.markdown("\\n".join(card), unsafe_allow_html=True)
+            st.markdown("\n".join(card), unsafe_allow_html=True)
             st.markdown("</div>", unsafe_allow_html=True)
 
     # PDF
