@@ -126,24 +126,48 @@ IDX_MAP = {
 
 # Instruktioner
 INSTR_CHEF = (
-    "**Chef**\n\n"
-    "Syftet med frågorna nedan är att du ska beskriva hur du kommunicerar med dina medarbetare i frågor som rör deras arbete.\n\n"
-    "Använd följande svarsskala:\n\n"
-    "**1 = Aldrig, 2 = Nästan aldrig, 3 = Sällan, 4 = Ibland, 5 = Ofta, 6 = Nästan alltid, 7 = Alltid**.\n\n"
+    "**Chef**
+
+"
+    "Syftet med frågorna nedan är att du ska beskriva hur du kommunicerar med dina medarbetare i frågor som rör deras arbete.
+
+"
+    "Använd följande svarsskala:
+
+"
+    "**1 = Aldrig, 2 = Nästan aldrig, 3 = Sällan, 4 = Ibland, 5 = Ofta, 6 = Nästan alltid, 7 = Alltid**.
+
+"
     "Ange hur ofta du gör följande:"
 )
 INSTR_EMP = (
-    "**Medarbetare**\n\n"
-    "Syftet med frågorna nedan är att du ska beskriva hur din chef kommunicerar med dig i frågor som rör ditt arbete.\n\n"
-    "Använd följande svarsskala:\n\n"
-    "**1 = Aldrig, 2 = Nästan aldrig, 3 = Sällan, 4 = Ibland, 5 = Ofta, 6 = Nästan alltid, 7 = Alltid**.\n\n"
+    "**Medarbetare**
+
+"
+    "Syftet med frågorna nedan är att du ska beskriva hur din chef kommunicerar med dig i frågor som rör ditt arbete.
+
+"
+    "Använd följande svarsskala:
+
+"
+    "**1 = Aldrig, 2 = Nästan aldrig, 3 = Sällan, 4 = Ibland, 5 = Ofta, 6 = Nästan alltid, 7 = Alltid**.
+
+"
     "Ange hur ofta din chef gör följande:"
 )
 INSTR_OVER = (
-    "**Överordnad chef**\n\n"
-    "Syftet med frågorna nedan är att du ska beskriva hur din underställda chef kommunicerar i arbetsrelaterade frågor.\n\n"
-    "Använd följande svarsskala:\n\n"
-    "**1 = Aldrig, 2 = Nästan aldrig, 3 = Sällan, 4 = Ibland, 5 = Ofta, 6 = Nästan alltid, 7 = Alltid**.\n\n"
+    "**Överordnad chef**
+
+"
+    "Syftet med frågorna nedan är att du ska beskriva hur din underställda chef kommunicerar i arbetsrelaterade frågor.
+
+"
+    "Använd följande svarsskala:
+
+"
+    "**1 = Aldrig, 2 = Nästan aldrig, 3 = Sällan, 4 = Ibland, 5 = Ofta, 6 = Nästan alltid, 7 = Alltid**.
+
+"
     "Ange hur ofta din underställda chef gör följande:"
 )
 
@@ -177,7 +201,7 @@ def build_pdf(title: str, sections, results_map, contact: dict) -> bytes:
     pdf.drawString(50, y, "Kontaktuppgifter"); y -= 14
     pdf.setFont("Helvetica", 10)
     line1 = "   |   ".join([
-        f"Namn: {contact.get('Namn','')}",
+        f"Namn: {contact.get('Förnamn','')} {contact.get('Efternamn','')}",
         f"Företag: {contact.get('Företag','')}",
         f"Telefon: {contact.get('Telefon','')}",
     ])
@@ -220,7 +244,7 @@ def build_pdf(title: str, sections, results_map, contact: dict) -> bytes:
         pdf.setFont("Helvetica", 11)
         y_left = section_top
         approx_chars = max(40, int(95 * (left_w / content_w)))
-        for para in str(s["text"]).split("\n\n"):
+        for para in str(s["text"]).split("\n\n"): 
             for ln in textwrap.wrap(para, width=approx_chars):
                 y_left -= 16
             y_left -= 4
@@ -264,7 +288,7 @@ def build_pdf(title: str, sections, results_map, contact: dict) -> bytes:
         # Vänster: brödtext inom 68 %
         pdf.setFont("Helvetica", 11)
         y_left_draw = section_top
-        for para in str(s["text"]).split("\n\n"):
+        for para in str(s["text"]).split("\n\n"): 
             for ln in textwrap.wrap(para, width=approx_chars):
                 y = ensure(16); pdf.drawString(margin, y_left_draw, ln); y_left_draw -= 16
             y_left_draw -= 4
@@ -291,25 +315,29 @@ def render_landing():
         unsafe_allow_html=True,
     )
 
-    base = st.session_state.get("kontakt", {"Namn":"", "Företag":"", "Telefon":"", "E-post":"", "Funktion":"Chef", "Unikt id":""})
+    base = st.session_state.get("kontakt", {"Förnamn":"", "Efternamn":"", "Namn":"", "Företag":"", "Telefon":"", "E-post":"", "Funktion":"Chef", "Unikt id":""})
     with st.form("landing_form"):
         c1, c2 = st.columns(2)
         with c1:
-            namn = st.text_input("Namn", value=base["Namn"])            
-            tel  = st.text_input("Telefon", value=base["Telefon"])       
-            fun  = st.selectbox("Funktion", ["Chef", "Överordnad chef", "Medarbetare"], index=["Chef","Överordnad chef","Medarbetare"].index(base["Funktion"]))
+            first = st.text_input("Förnamn", value=base.get("Förnamn",""))
+            tel   = st.text_input("Telefon", value=base.get("Telefon",""))
+            fun   = st.selectbox("Funktion", ["Chef", "Överordnad chef", "Medarbetare"], index=["Chef","Överordnad chef","Medarbetare"].index(base.get("Funktion","Chef")))
         with c2:
-            fore = st.text_input("Företag", value=base["Företag"])      
-            mail = st.text_input("E-post", value=base["E-post"])        
+            last  = st.text_input("Efternamn", value=base.get("Efternamn",""))
+            fore  = st.text_input("Företag", value=base.get("Företag",""))
+            mail  = st.text_input("E-post", value=base.get("E-post",""))
 
         start = st.form_submit_button("Starta", type="primary")
 
     if start:
-        if not namn.strip() or not mail.strip():
-            st.warning("Fyll i minst **Namn** och **E-post**.")
+        if not first.strip() or not mail.strip():
+            st.warning("Fyll i minst **Förnamn** och **E-post**.")
             return
+        full_name = (first.strip() + " " + last.strip()).strip()
         st.session_state["kontakt"] = {
-            "Namn": namn.strip(),
+            "Förnamn": first.strip(),
+            "Efternamn": last.strip(),
+            "Namn": full_name,
             "Företag": fore.strip(),
             "Telefon": tel.strip(),
             "E-post": mail.strip(),
@@ -333,7 +361,7 @@ def render_id_page():
     with st.form("idform"):
         c1, c2 = st.columns([0.6, 0.4])
         with c1:
-            chef_first = st.text_input("Chefens förnamn", value=base.get("Chefens förnamn",""))
+            chef_first = st.text_input("Chefens förnamn", value=base.get("Chefens förnamn", base.get("Förnamn","")))
             uid        = st.text_input("Unikt id", value=base.get("Unikt id",""))
         with c2:
             st.write(""); st.write(f"**Din roll:** {base.get('Funktion','')}")
@@ -464,7 +492,7 @@ def render_assessment():
         f"""
         <div class="contact-card">
           <div class="contact-grid">
-            <div><div class="label">Namn</div><div class="pill">{base.get('Namn','')}</div></div>
+            <div><div class=\"label\">Namn<\/div><div class=\"pill\">{(base.get('Förnamn','') + ' ' + base.get('Efternamn','')).strip()}<\/div></div>
             <div><div class="label">Företag</div><div class="pill">{base.get('Företag','')}</div></div>
             <div><div class="label">E-post</div><div class="pill">{base.get('E-post','')}</div></div>
             <div><div class="label">Telefon</div><div class="pill">{base.get('Telefon','')}</div></div>
@@ -484,7 +512,7 @@ def render_assessment():
         left, right = st.columns([0.68, 0.32])
         with left:
             st.header(s["title"])
-            for p in s["text"].split("\n\n"):
+            for p in s["text"].split("\n\n"): 
                 st.write(p)
         with right:
             key, mx = s["key"], s["max"]
@@ -504,13 +532,13 @@ def render_assessment():
             card += bar("Överordnad chef", over, mx, "bar-orange")
             card += bar("Medarbetare", med, mx, "bar-blue")
             card += [f"<div class='maxline'>Max: {mx} poäng</div>", "</div>"]
-            st.markdown("\n".join(card), unsafe_allow_html=True)
+            st.markdown("\\n".join(card), unsafe_allow_html=True)
             st.markdown("</div>", unsafe_allow_html=True)
 
     # PDF
     k = st.session_state.get("kontakt", {})
     pdf_bytes = build_pdf(PAGE_TITLE, SECTIONS, scores, k)
-    pdf_name = f"Självskattning - {k.get('Namn') or 'Person'} - {k.get('Företag') or 'Företag'}.pdf"
+    pdf_name = f"Självskattning - {(k.get('Förnamn') or '')} {(k.get('Efternamn') or '')} - {k.get('Företag') or 'Företag'}.pdf"
     st.download_button("Ladda ner PDF", data=pdf_bytes, file_name=pdf_name, mime="application/pdf", type="primary")
 
     if st.button("◀ Till startsidan"):
