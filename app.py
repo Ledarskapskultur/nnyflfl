@@ -2,6 +2,8 @@ from io import BytesIO
 import textwrap, secrets, string
 
 import streamlit as st
+import requests
+import json
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.colors import HexColor, black
@@ -17,6 +19,36 @@ st.set_page_config(
 
 EGGSHELL = "#FAF7F0"
 PRIMARY = "#EF4444"
+
+# =============================
+# Power Automate (HTTP-trigger) – "När en HTTP-begäran tas emot"
+# =============================
+FLOW_POST_URL  = st.secrets.get("FLOW_POST_URL", "")   # POST-endpoint som skriver till SharePoint
+FLOW_FETCH_URL = st.secrets.get("FLOW_FETCH_URL", "")  # (valfritt) GET-endpoint som hämtar via uid
+
+
+def flow_send(payload: dict) -> bool:
+    """POST:a nyttolast till Power Automate-flödet. Returnerar True om 2xx."""
+    if not FLOW_POST_URL:
+        return False
+    try:
+        r = requests.post(FLOW_POST_URL, json=payload, timeout=20)
+        return 200 <= r.status_code < 300
+    except Exception:
+        return False
+
+
+def flow_fetch(uid: str) -> dict | None:
+    """(Valfritt) Hämta resultat via uid från ett GET-flöde som returnerar JSON."""
+    if not (FLOW_FETCH_URL and uid):
+        return None
+    try:
+        r = requests.get(FLOW_FETCH_URL, params={"uid": uid}, timeout=20)
+        if 200 <= r.status_code < 300:
+            return r.json()
+    except Exception:
+        pass
+    return None
 
 # =============================
 # Hjälpfunktioner
@@ -419,6 +451,33 @@ def render_survey_core(title: str, instruction_md: str, questions: list[str], an
         else:
             pressed = st.button("Skicka självskattning", type="primary", disabled=not full)
             if pressed:
+                # Skicka till Power Automate-flöde (om FLOW_POST_URL är satt)
+                k = st.session_state.get("kontakt", {})
+                role = ("Chef" if answers_key == "chef_answers" else ("Medarbetare" if answers_key == "other_answers" else "Överordnad chef"))
+                # summera delpoäng
+                def part_sum(ans, key):
+                    return sum(ans[i] for i in IDX_MAP[key] if isinstance(ans[i], int))
+                parts = {
+                    "lyssnande": part_sum(st.session_state[answers_key], "lyssnande"),
+                    "aterkoppling": part_sum(st.session_state[answers_key], "aterkoppling"),
+                    "malinriktning": part_sum(st.session_state[answers_key], "malinriktning"),
+                }
+                payload = {
+                    "kontakt": {
+                        "Förnamn": k.get("Förnamn",""),
+                        "Efternamn": k.get("Efternamn",""),
+                        "Företag": k.get("Företag",""),
+                        "Telefon": k.get("Telefon",""),
+                        "E-post": k.get("E-post",""),
+                        "Funktion": k.get("Funktion",""),
+                        "Unikt id": k.get("Unikt id",""),
+                    },
+                    "roll": role,
+                    "answers": st.session_state[answers_key],
+                    "scores": parts,
+                }
+                _ = flow_send(payload)
+                # Gå vidare
                 st.session_state["page"] = on_submit_page
                 rerun()
 
@@ -451,6 +510,20 @@ def render_thankyou():
 
 
 def render_assessment():
+    # Om resultatsidan öppnas via URL med ?uid=..., hämta via GET-endpoint och populera (om konfigurerat)
+    qp = st.experimental_get_query_params()
+    uid_qp = (qp.get("uid", [None])[0])
+    if uid_qp and ("scores" not in st.session_state or not st.session_state.get("kontakt")):
+        data = flow_fetch(uid_qp)
+        if isinstance(data, dict):
+            k = data.get("kontakt", {})
+            s = data.get("scores", {})
+            if k:
+                st.session_state["kontakt"] = k
+            if s:
+                st.session_state["scores"] = s
+
+    # Summera scorekartor
     # Summera scorekartor
     scores = {"lyssnande":{}, "aterkoppling":{}, "malinriktning":{}}
 
@@ -532,6 +605,12 @@ def render_assessment():
     pdf_bytes = build_pdf(PAGE_TITLE, SECTIONS, scores, k)
     pdf_name = f"Självskattning - {(k.get('Förnamn') or '')} {(k.get('Efternamn') or '')} - {k.get('Företag') or 'Företag'}.pdf"
     st.download_button("Ladda ner PDF", data=pdf_bytes, file_name=pdf_name, mime="application/pdf", type="primary")
+
+    # Dela-länk till resultatsidan via URL med uid
+    uid_share = k.get("Unikt id")
+    if uid_share:
+        st.experimental_set_query_params(uid=uid_share)
+        st.info(f"Dela denna länk för att se resultatet igen: ?uid={uid_share}")
 
     if st.button("◀ Till startsidan"):
         st.session_state["page"] = "landing"
