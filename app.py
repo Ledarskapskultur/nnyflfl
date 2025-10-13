@@ -1,4 +1,4 @@
-# app.py (refaktorerad/optimerad)
+# app.py – full app med sidor + enkäter + assessment
 from __future__ import annotations
 
 from io import BytesIO
@@ -24,7 +24,7 @@ st.set_page_config(page_title="Självskattning – Funktionellt ledarskap",
 
 EGGSHELL = "#FAF7F0"
 
-CSS = f"""
+st.markdown(f"""
 <style>
   .stApp {{ background-color:{EGGSHELL}; }}
   .block-container {{ padding-top:2rem; padding-bottom:3rem; }}
@@ -33,20 +33,16 @@ CSS = f"""
   .stMarkdown h2 {{ font-size:19px; font-weight:700; margin:24px 0 8px 0; }}
   .stMarkdown p, .stMarkdown {{ font-size:15px; line-height:21px; }}
 
-  .card {{ background:#fff; border-radius:12px; border:1px solid rgba(0,0,0,.12);
-           box-shadow:0 6px 20px rgba(0,0,0,.08); padding:14px 16px; }}
-  .hero {{ text-align:center; padding:34px 28px; }}
-  .hero h1 {{ font-size:34px; margin:0 0 8px 0; }}
-  .hero p  {{ color:#374151; margin:0 0 18px 0; }}
-
   .note {{ border-left:6px solid #3B82F6; background:#EAF2FF; color:#0F172A;
            padding:14px 16px; border-radius:10px; }}
 
-  .contact-card {{ padding:12px 14px; }}
-  .contact-title {{ font-weight:700; font-size:19px; margin:6px 0 10px 0; }}
+  .contact-card {{ background:#fff; border:1px solid rgba(0,0,0,.12); border-radius:12px;
+                   padding:12px 14px; box-shadow:0 4px 16px rgba(0,0,0,.06); }}
+  .contact-title {{ font-weight:700; font-size:19px; margin: 6px 0 10px 0; }}
 
   .right-wrap {{ display:flex; align-items:center; justify-content:center; }}
-  .res-card {{ max-width:380px; width:100%; padding:16px 18px; }}
+  .res-card {{ max-width:380px; width:100%; padding:16px 18px; border:1px solid rgba(0,0,0,.12);
+               border-radius:12px; box-shadow:0 6px 20px rgba(0,0,0,.08); background:#fff; }}
   .role-label {{ font-size:13px; color:#111827; margin:10px 0 6px 0; display:block; font-weight:600; }}
   .barbg {{ width:100%; height:10px; background:#E9ECEF; border-radius:6px; overflow:hidden; }}
   .barfill {{ height:10px; display:block; }}
@@ -54,13 +50,15 @@ CSS = f"""
   .bar-orange {{ background:#F5A524; }}
   .bar-blue {{ background:#3B82F6; }}
   .maxline {{ font-size:13px; color:#374151; margin-top:12px; font-weight:600; }}
+
+  /* Viktigt: sänker resultatkortet till brödtextens topp */
+  .spacer-h2 {{ height: 34px; }}
 </style>
-"""
-st.markdown(CSS, unsafe_allow_html=True)
+""", unsafe_allow_html=True)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Konfiguration (Power Automate – valfritt)
+# Power Automate – valfritt
 # ──────────────────────────────────────────────────────────────────────────────
 FLOW_LOOKUP_URL = os.getenv("FLOW_LOOKUP_URL", "").strip()
 FLOW_LOG_URL    = os.getenv("FLOW_LOG_URL", "").strip()
@@ -81,12 +79,15 @@ def safe_post(url: str, payload: dict) -> Tuple[bool, dict | None, str | None]:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Innehåll (sektionstexter och maxpoäng)
+# Innehåll
 # ──────────────────────────────────────────────────────────────────────────────
 PAGE_TITLE = "Självskattning – Funktionellt ledarskap"
+
 SECTIONS = [
     {
-        "key": "lyssnande", "title": "Aktivt lyssnande", "max": 49,
+        "key": "lyssnande",
+        "title": "Aktivt lyssnande",
+        "max": 49,
         "text": (
             "I dagens arbetsliv har chefens roll förändrats. Medarbetarna sitter ofta på den djupaste kompetensen och "
             "lösningarna på verksamhetens utmaningar.\n\n"
@@ -98,7 +99,9 @@ SECTIONS = [
         ),
     },
     {
-        "key": "aterkoppling", "title": "Återkoppling", "max": 56,
+        "key": "aterkoppling",
+        "title": "Återkoppling",
+        "max": 56,
         "text": (
             "Effektiv återkoppling är grunden för både utveckling och motivation. Medarbetare behöver veta vad som "
             "förväntas, hur de ligger till och hur de kan växa. När du som chef tydligt beskriver uppgifter och "
@@ -111,7 +114,9 @@ SECTIONS = [
         ),
     },
     {
-        "key": "malinriktning", "title": "Målinriktning", "max": 35,
+        "key": "malinriktning",
+        "title": "Målinriktning",
+        "max": 35,
         "text": (
             "Målinriktat ledarskap handlar om att ge tydliga ramar – tid, resurser och ansvar – så att medarbetare kan "
             "arbeta effektivt och med trygghet. Tydliga och inspirerande mål skapar riktning och hjälper alla att "
@@ -125,7 +130,6 @@ SECTIONS = [
     },
 ]
 
-# Frågor per roll
 CHEF_QUESTIONS = [
     "Efterfrågar deras förslag när det gäller hur arbetet kan förbättras",
     "Efterfrågar deras idéer när det gäller planering av arbetet",
@@ -148,7 +152,7 @@ CHEF_QUESTIONS = [
     "Är tydlig med vad du förväntar dig av dem",
     "Ser till att dina medarbetares arbete samordnas",
 ]
-EMP_QUESTIONS = CHEF_QUESTIONS  # samma teman, speglat mot chefens beteende
+EMP_QUESTIONS = CHEF_QUESTIONS
 OVER_QUESTIONS = [
     "Efterfrågar andras förslag när det gäller hur hens verksamhet kan förbättras",
     "Efterfrågar andras idéer när det gäller planering av hens verksamhet",
@@ -203,17 +207,15 @@ ROLE_ORDER  = ["chef", "overchef", "medarbetare"]
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Hjälpfunktioner
+# Hjälp
 # ──────────────────────────────────────────────────────────────────────────────
 def generate_unikt_id(n: int = 8) -> str:
     alphabet = string.ascii_uppercase + string.digits
     return "".join(secrets.choice(alphabet) for _ in range(n))
 
 def rerun():
-    try:
-        st.rerun()
-    except AttributeError:
-        st.experimental_rerun()
+    try: st.rerun()
+    except AttributeError: st.experimental_rerun()
 
 def sum_by_index(values: List[int | None], idxs: List[int]) -> int:
     return sum(v for i, v in enumerate(values) if i in idxs and isinstance(v, int))
@@ -227,100 +229,6 @@ def radio_row(key_prefix: str, i: int, current: int | None):
     st.radio("", [1,2,3,4,5,6,7], index=idx, horizontal=True,
              label_visibility="collapsed", key=f"{key_prefix}_{i}")
 
-def render_contact_locked():
-    st.markdown("<div class='contact-title'>Kontaktuppgifter</div>", unsafe_allow_html=True)
-    with st.container():
-        st.markdown("<div class='card contact-card'>", unsafe_allow_html=True)
-        base = st.session_state.get("kontakt", {"Namn":"","Företag":"","Telefon":"","E-post":"","Funktion":"Chef","Unikt id":""})
-        c1, c2, c3 = st.columns([0.4, 0.3, 0.3])
-        with c1:
-            st.text_input("Namn", value=base.get("Namn",""), disabled=True)
-            st.text_input("E-post", value=base.get("E-post",""), disabled=True)
-        with c2:
-            st.text_input("Företag", value=base.get("Företag",""), disabled=True)
-            st.text_input("Telefon", value=base.get("Telefon",""), disabled=True)
-        with c3:
-            st.text_input("Funktion", value=base.get("Funktion",""), disabled=True)
-            st.text_input("Unikt id", value=base.get("Unikt id",""), disabled=True)
-        st.markdown("</div>", unsafe_allow_html=True)
-
-def results_card(section_key: str, title: str, max_points: int, scores: Dict[str, Dict[str,int]]):
-    chef = int(scores.get(section_key,{}).get("chef",0))
-    over = int(scores.get(section_key,{}).get("overchef",0))
-    med  = int(scores.get(section_key,{}).get("medarbetare",0))
-    st.markdown("<div class='right-wrap'>", unsafe_allow_html=True)
-    html = [f"<div class='card res-card'>"]
-    def bar(lbl,val,cls):
-        pct = 0 if max_points==0 else val/max_points*100
-        return [f"<span class='role-label'>{lbl}: {val} poäng</span>",
-                f"<div class='barbg'><span class='barfill {cls}' style='width:{pct:.0f}%'></span></div>"]
-    html += bar("Chef", chef, "bar-green")
-    html += bar("Överordnad chef", over, "bar-orange")
-    html += bar("Medarbetare", med, "bar-blue")
-    html += [f"<div class='maxline'>Max: {max_points} poäng</div>", "</div>"]
-    st.markdown("\n".join(html), unsafe_allow_html=True)
-    st.markdown("</div>", unsafe_allow_html=True)
-
-
-# ──────────────────────────────────────────────────────────────────────────────
-# PDF
-# ──────────────────────────────────────────────────────────────────────────────
-def build_pdf(title: str, sections, results_map, contact: dict) -> bytes:
-    buf = BytesIO()
-    pdf = canvas.Canvas(buf, pagesize=A4)
-    w, h = A4
-
-    pdf.setFillColor(HexColor(EGGSHELL)); pdf.rect(0,0,w,h,fill=1,stroke=0)
-    pdf.setFillColor(black)
-    pdf.setTitle("självskattning_funktionellt_ledarskap.pdf")
-
-    margin = 50; y = h - 60
-    pdf.setFont("Helvetica-Bold", 22); pdf.drawString(margin, y, title)
-    pdf.setFont("Helvetica", 9); pdf.drawRightString(w - margin, y+4, datetime.now().strftime("Genererad: %Y-%m-%d %H:%M"))
-    y -= 28
-
-    pdf.setFont("Helvetica-Bold", 10); pdf.drawString(margin, y, "Kontaktuppgifter"); y -= 14
-    pdf.setFont("Helvetica", 10)
-    row = [f"Unikt id: {contact.get('Unikt id','')}",
-           f"Namn: {contact.get('Namn','')}",
-           f"Företag: {contact.get('Företag','')}",
-           f"Telefon: {contact.get('Telefon','')}",
-           f"E-post: {contact.get('E-post','')}",
-           f"Funktion: {contact.get('Funktion','')}"]
-    line = "   |   ".join(row)
-    if len(line) > 110:
-        mid = len(row)//2
-        pdf.drawString(margin, y, "   |   ".join(row[:mid])); y -= 14
-        pdf.drawString(margin, y, "   |   ".join(row[mid:])); y -= 8
-    else:
-        pdf.drawString(margin, y, line); y -= 14
-
-    def ensure(px: int):
-        nonlocal y
-        if y - px < 50:
-            pdf.showPage(); pdf.setFillColor(HexColor(EGGSHELL)); pdf.rect(0,0,w,h,fill=1,stroke=0)
-            pdf.setFillColor(black); pdf.setFont("Helvetica",9); pdf.drawString(margin, h-40, title); y = h - 60
-
-    bg = Color(0.91,0.92,0.94); green=Color(0.30,0.69,0.31); orange=Color(0.96,0.65,0.15); blue=Color(0.23,0.51,0.96)
-
-    for s in sections:
-        ensure(30); pdf.setFont("Helvetica-Bold", 14); pdf.drawString(margin, y, s["title"]); y -= 20
-        pdf.setFont("Helvetica", 11)
-        for para in s["text"].split("\n\n"):
-            for ln in textwrap.wrap(para, width=95):
-                ensure(16); pdf.drawString(margin, y, ln); y -= 16
-
-        key, mx = s["key"], s["max"]
-        for lbl, role, col in [("Chef","chef",green),("Överordnad chef","overchef",orange),("Medarbetare","medarbetare",blue)]:
-            val = int(results_map.get(key,{}).get(role,0))
-            ensure(26); pdf.setFont("Helvetica-Bold",10); pdf.drawString(margin, y, f"{lbl}: {val} poäng"); y -= 12
-            bw, bh = w-2*margin, 8; pdf.setFillColor(bg); pdf.rect(margin, y, bw, bh, fill=1, stroke=0)
-            fw = 0 if mx==0 else bw*(val/mx); pdf.setFillColor(col); pdf.rect(margin, y, fw, bh, fill=1, stroke=0)
-            pdf.setFillColor(black); y -= 14
-        pdf.setFont("Helvetica-Bold",10); pdf.drawString(margin, y, f"Max: {mx} poäng"); y -= 18
-
-    pdf.showPage(); pdf.save(); buf.seek(0); return buf.getvalue()
-
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Sidor
@@ -328,10 +236,7 @@ def build_pdf(title: str, sections, results_map, contact: dict) -> bytes:
 def landing():
     st.markdown(
         """
-        <div class="card hero">
-          <h1>Självskattning – Funktionellt ledarskap</h1>
-          <p>Fyll i dina uppgifter nedan och starta självskattningen.</p>
-        </div>
+        <div class="note">Fyll i dina uppgifter nedan och starta självskattningen.</div>
         """, unsafe_allow_html=True
     )
     d = st.session_state.get("kontakt", {"Namn":"","Företag":"","Telefon":"","E-post":"","Funktion":"Chef","Unikt id":""})
@@ -432,6 +337,10 @@ def chef_survey():  survey_core("Självskattning (Chef)", INSTR_CHEF, CHEF_QUEST
 def other_survey(): survey_core("Självskattning (Medarbetare)", INSTR_EMP, EMP_QUESTIONS, "other_answers", "other_page")
 def over_survey():  survey_core("Självskattning (Överordnad chef)", INSTR_OVER, OVER_QUESTIONS, "over_answers", "over_page")
 
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Assessment (resultat)
+# ──────────────────────────────────────────────────────────────────────────────
 def assessment():
     # summera
     scores = st.session_state.get("scores", {"lyssnande":{}, "aterkoppling":{}, "malinriktning":{}})
@@ -452,23 +361,148 @@ def assessment():
         scores["malinriktning"]["overchef"] = sum_by_index(a, IDX_MAP["malinriktning"])
     st.session_state["scores"] = scores
 
-    # UI
     st.markdown(f"# {PAGE_TITLE}")
-    render_contact_locked()
 
+    # Kontakt upp – låsta
+    st.markdown("<div class='contact-title'>Kontaktuppgifter</div>", unsafe_allow_html=True)
+    with st.container():
+        st.markdown("<div class='contact-card'>", unsafe_allow_html=True)
+        base = st.session_state.get("kontakt", {"Namn":"","Företag":"","Telefon":"","E-post":"","Funktion":"Chef","Unikt id":""})
+        c1, c2, c3 = st.columns([0.4, 0.3, 0.3])
+        with c1:
+            st.text_input("Namn", value=base.get("Namn",""), disabled=True)
+            st.text_input("E-post", value=base.get("E-post",""), disabled=True)
+        with c2:
+            st.text_input("Företag", value=base.get("Företag",""), disabled=True)
+            st.text_input("Telefon", value=base.get("Telefon",""), disabled=True)
+        with c3:
+            st.text_input("Funktion", value=base.get("Funktion",""), disabled=True)
+            st.text_input("Unikt id", value=base.get("Unikt id",""), disabled=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    # Sektioner – resultatkort ska linjera med brödtexten (spacer i högerkolumn)
     for s in SECTIONS:
         left, right = st.columns([0.68, 0.32])
         with left:
             st.header(s["title"])
-            for p in s["text"].split("\n\n"): st.write(p)
+            for p in s["text"].split("\n\n"):
+                st.write(p)
         with right:
-            results_card(s["key"], s["title"], s["max"], scores)
+            st.markdown("<div class='spacer-h2'></div>", unsafe_allow_html=True)  # <- flyttar ned kortet
+            key, mx = s["key"], s["max"]
+            chef = int(scores.get(key,{}).get("chef",0))
+            over = int(scores.get(key,{}).get("overchef",0))
+            med  = int(scores.get(key,{}).get("medarbetare",0))
 
-    st.divider(); st.caption("Ladda ner en PDF som speglar innehållet.")
+            st.markdown("<div class='right-wrap'>", unsafe_allow_html=True)
+            html = ["<div class='res-card'>"]
+            def bar(lbl, val, maxv, cls):
+                pct = 0 if maxv==0 else val/maxv*100
+                return [
+                    f"<span class='role-label'>{lbl}: {val} poäng</span>",
+                    f"<div class='barbg'><span class='barfill {cls}' style='width:{pct:.0f}%'></span></div>",
+                ]
+            html += bar("Chef", chef, mx, "bar-green")
+            html += bar("Överordnad chef", over, mx, "bar-orange")
+            html += bar("Medarbetare", med, mx, "bar-blue")
+            html += [f"<div class='maxline'>Max: {mx} poäng</div>", "</div>"]
+            st.markdown("\n".join(html), unsafe_allow_html=True)
+            st.markdown("</div>", unsafe_allow_html=True)
+
+    st.divider()
+    st.caption("Ladda ner PDF som speglar sidan (samma 68/32-linje).")
     pdf = build_pdf(PAGE_TITLE, SECTIONS, scores, st.session_state.get("kontakt", {}))
-    st.download_button("Ladda ner PDF", data=pdf, file_name="självskattning_funktionellt_ledarskap.pdf",
+    # Dynamiskt namn:
+    k = st.session_state.get("kontakt", {})
+    pdf_name = f"Självskattning - {k.get('Namn') or 'Person'} - {k.get('Företag') or 'Företag'}.pdf"
+    st.download_button("Ladda ner PDF", data=pdf, file_name=pdf_name,
                        mime="application/pdf", type="primary")
-    if st.button("◀ Till startsidan"): st.session_state["page"]="landing"; rerun()
+
+    if st.button("◀ Till startsidan"):
+        st.session_state["page"] = "landing"; rerun()
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# PDF – 68/32 kolumn, staplar i linje med brödtext
+# ──────────────────────────────────────────────────────────────────────────────
+def build_pdf(title: str, sections, results_map, contact: dict) -> bytes:
+    buf = BytesIO()
+    pdf = canvas.Canvas(buf, pagesize=A4)
+    w, h = A4
+
+    pdf.setFillColor(HexColor(EGGSHELL)); pdf.rect(0,0,w,h,fill=1,stroke=0)
+    pdf.setFillColor(black)
+    pdf.setTitle("självskattning_funktionellt_ledarskap.pdf")
+
+    margin = 50; y = h - 60
+    pdf.setFont("Helvetica-Bold", 22); pdf.drawString(margin, y, title)
+    pdf.setFont("Helvetica", 9); pdf.drawRightString(w - margin, y+4, datetime.now().strftime("Genererad: %Y-%m-%d %H:%M"))
+    y -= 28
+
+    # Kontakt
+    pdf.setFont("Helvetica-Bold", 10); pdf.drawString(margin, y, "Kontaktuppgifter"); y -= 14
+    pdf.setFont("Helvetica", 10)
+    row = [
+        f"Unikt id: {contact.get('Unikt id','')}",
+        f"Namn: {contact.get('Namn','')}",
+        f"Företag: {contact.get('Företag','')}",
+        f"Telefon: {contact.get('Telefon','')}",
+        f"E-post: {contact.get('E-post','')}",
+    ]
+    line = "   |   ".join(row)
+    if len(line) > 110:
+        mid = len(row)//2
+        pdf.drawString(margin, y, "   |   ".join(row[:mid])); y -= 14
+        pdf.drawString(margin, y, "   |   ".join(row[mid:])); y -= 8
+    else:
+        pdf.drawString(margin, y, line); y -= 14
+
+    def ensure(px: int):
+        nonlocal y
+        if y - px < 50:
+            pdf.showPage(); pdf.setFillColor(HexColor(EGGSHELL)); pdf.rect(0,0,w,h,fill=1,stroke=0)
+            pdf.setFillColor(black); pdf.setFont("Helvetica",9); pdf.drawString(margin, h-40, title); y = h - 60
+
+    bar_bg = Color(0.91,0.92,0.94); green=Color(0.30,0.69,0.31); orange=Color(0.96,0.65,0.15); blue=Color(0.23,0.51,0.96)
+
+    # två kolumner 68/32
+    content_w = w - 2*margin
+    left_w = content_w * 0.68
+    right_w = content_w - left_w
+
+    for s in sections:
+        ensure(30)
+        pdf.setFont("Helvetica-Bold", 14); pdf.drawString(margin, y, s["title"]); y -= 20
+
+        y_top = y  # samma start för båda kolumner
+
+        # Höger: staplar i linje med brödtext (börjar på y_top)
+        y_right = y_top
+        pdf.setFont("Helvetica", 10)
+        for role, col in [("chef", green), ("overchef", orange), ("medarbetare", blue)]:
+            val = int(results_map.get(s["key"], {}).get(role, 0))
+            mx  = int(s["max"])
+            pdf.drawString(margin + left_w + 10, y_right, f"{ROLE_LABELS[role]} – Summa {val}/{mx}")
+            y_right -= 12
+            pdf.setFillColor(bar_bg); pdf.rect(margin + left_w + 10, y_right, right_w - 20, 8, fill=1, stroke=0)
+            fw = 0 if mx==0 else (right_w - 20) * (val/mx)
+            pdf.setFillColor(col); pdf.rect(margin + left_w + 10, y_right, fw, 8, fill=1, stroke=0)
+            pdf.setFillColor(black); y_right -= 14
+
+        # Vänster: brödtext inom left_w
+        pdf.setFont("Helvetica", 11)
+        y_left = y_top
+        # Enkel approx för wrapping i kolumnbredd
+        approx_chars = max(40, int(95 * (left_w / content_w)))
+        for para in s["text"].split("\n\n"):
+            for ln in textwrap.wrap(para, width=approx_chars):
+                ensure(16); pdf.drawString(margin, y_left, ln); y_left -= 16
+            y_left -= 4
+
+        # Nästa sektion under lägsta punkt
+        y = min(y_left, y_right) - 12
+
+    pdf.showPage(); pdf.save(); buf.seek(0); return buf.getvalue()
 
 
 # ──────────────────────────────────────────────────────────────────────────────
