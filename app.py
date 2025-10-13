@@ -23,7 +23,7 @@ PRIMARY = "#EF4444"
 # =============================
 # Power Automate (HTTP-trigger) – "När en HTTP-begäran tas emot"
 # =============================
-FLOW_POST_URL  = st.secrets.get("FLOW_POST_URL", "")   # POST-endpoint som skriver till SharePoint
+FLOW_POST_URL  = st.secrets.get("FLOW_POST_URL", "https://default1ad3791223f4412ea6272223201343.20.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/cccd2320619746d9aa530cd73e7c6684/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=tFGViS77m0LhkCgnXjuQkYsf_RuXLMSE5lpKrgmj9VI")  # POST-endpoint som skriver till SharePoint
 FLOW_FETCH_URL = st.secrets.get("FLOW_FETCH_URL", "")  # (valfritt) GET-endpoint som hämtar via uid
 
 
