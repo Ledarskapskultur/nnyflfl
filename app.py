@@ -54,6 +54,9 @@ st.markdown(
       /* Sektionstitel (ersätter st.header för exakt spacing) */
       .sec-h2 {{ font-size: 22px; font-weight: 700; margin: 10px 0 12px 0; }}
 
+      /* Sektion med grid för vertikal centrering */
+      .section-row { display:grid; grid-template-columns: 0.68fr 0.32fr; column-gap:24px; align-items:center; }
+
       /* Info-ruta */
       .note {{ border-left: 6px solid #3B82F6; background:#EAF2FF; color:#0F172A;
                padding:14px 16px; border-radius:10px; }}
@@ -275,12 +278,22 @@ def build_pdf(title: str, sections, results_map, contact: dict) -> bytes:
 
         section_top = y  # brödtextens topp
 
-        # Höger: resultatkort (linjerat med brödtextens topp)
+        # Beräkna vänsterkolumnens höjd för att centrera kortet vertikalt
+        approx_chars = max(40, int(95 * (left_w / content_w)))
+        y_probe = section_top
+        for para in str(s["text"]).split("
+
+"):
+            for ln in textwrap.wrap(para, width=approx_chars):
+                y_probe -= 16
+            y_probe -= 4
+        left_span = section_top - y_probe
+
         card_pad = 10
         card_w   = right_w - 10
         per_role = 12 + 10 + 14
         card_h   = card_pad + 3*per_role + 10 + card_pad
-        card_y   = section_top - card_h - 8
+        card_y   = section_top - (left_span/2 + card_h/2)
 
         pdf.setFillColor(HexColor("#FFFFFF"))
         pdf.setStrokeColor(HexColor("#D1D5DB"))
@@ -522,31 +535,35 @@ def render_assessment():
 
     # Sektioner 68/32
     for s in SECTIONS:
-        left, right = st.columns([0.68, 0.32])
-        with left:
-            st.markdown(f"<h2 class='sec-h2'>{s['title']}</h2>", unsafe_allow_html=True)
-            for p in s["text"].split("\n\n"):
-                st.write(p)
-        with right:
-            key, mx = s["key"], s["max"]
-            chef = int(scores.get(key,{}).get("chef",0))
-            over = int(scores.get(key,{}).get("overchef",0))
-            med  = int(scores.get(key,{}).get("medarbetare",0))
+        key, mx = s["key"], s["max"]
+        scores_map = st.session_state["scores"]
+        chef = int(scores_map.get(key,{}).get("chef",0))
+        over = int(scores_map.get(key,{}).get("overchef",0))
+        med  = int(scores_map.get(key,{}).get("medarbetare",0))
 
-            st.markdown("<div class='right-wrap'>", unsafe_allow_html=True)
-            card = [f"<div class='res-card'>"]
-            def bar(lbl, val, maxv, cls):
-                pct = 0 if maxv==0 else (val/maxv)*100
-                return [
-                    f"<span class='role-label'>{lbl}: {val} poäng</span>",
-                    f"<div class='barbg'><span class='barfill {cls}' style='width:{pct:.0f}%'></span></div>",
-                ]
-            card += bar("Chef", chef, mx, "bar-green")
-            card += bar("Överordnad chef", over, mx, "bar-orange")
-            card += bar("Medarbetare", med, mx, "bar-blue")
-            card += [f"<div class='maxline'>Max: {mx} poäng</div>", "</div>"]
-            st.markdown("\n".join(card), unsafe_allow_html=True)
-            st.markdown("</div>", unsafe_allow_html=True)
+        left_html = [f"<div><h2 class='sec-h2'>{s['title']}</h2>"]
+        for p in s["text"].split("
+
+"):
+            left_html.append(f"<p>{p}</p>")
+        left_html.append("</div>")
+
+        def bar_html(lbl, val, maxv, cls):
+            pct = 0 if maxv==0 else (val/maxv)*100
+            return (f"<span class='role-label'>{lbl}: {val} poäng</span>"
+                    f"<div class='barbg'><span class='barfill {cls}' style='width:{pct:.0f}%'></span></div>")
+
+        right_html = ["<div class='right-wrap'><div class='res-card'>"]
+        right_html.append(bar_html("Chef", chef, mx, "bar-green"))
+        right_html.append(bar_html("Överordnad chef", over, mx, "bar-orange"))
+        right_html.append(bar_html("Medarbetare", med, mx, "bar-blue"))
+        right_html.append(f"<div class='maxline'>Max: {mx} poäng</div></div></div>")
+
+        section_html = ("<div class='section-row'>"
+                        f"<div>{''.join(left_html)}</div>"
+                        f"<div>{''.join(right_html)}</div>"
+                        "</div>")
+        st.markdown(section_html, unsafe_allow_html=True)
 
     # PDF
     st.divider()
