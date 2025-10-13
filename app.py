@@ -369,6 +369,9 @@ def render_landing():
             st.warning("Fyll i minst **Förnamn** och **E-post**.")
             return
         full_name = (first.strip() + " " + last.strip()).strip()
+        # Fryser/återanvänder Unikt id under sessionen
+        uid_existing = base.get("Unikt id", "")
+        uid_value = (uid_existing or (generate_unikt_id() if fun == "Chef" else ""))
         st.session_state["kontakt"] = {
             "Förnamn": first.strip(),
             "Efternamn": last.strip(),
@@ -377,7 +380,7 @@ def render_landing():
             "Telefon": tel.strip(),
             "E-post": mail.strip(),
             "Funktion": fun,
-            "Unikt id": generate_unikt_id() if fun == "Chef" else base.get("Unikt id",""),
+            "Unikt id": uid_value,
         }
         if fun == "Chef":
             st.session_state["chef_answers"] = [None]*len(CHEF_QUESTIONS)
