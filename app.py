@@ -521,13 +521,7 @@ def render_assessment():
         f"""
         <div class="contact-card">
           <div class="contact-grid">
-            <div><div class="label">Namn</div><div class="pill">{base.get('Namn','')}</div></div>
-            <div><div class="label">Företag</div><div class="pill">{base.get('Företag','')}</div></div>
-            <div><div class="label">E-post</div><div class="pill">{base.get('E-post','')}</div></div>
-            <div><div class="label">Telefon</div><div class="pill">{base.get('Telefon','')}</div></div>
-            <div><div class="label">Funktion</div><div class="pill">{base.get('Funktion','')}</div></div>
-            <div><div class="label">Unikt id</div><div class="pill">{base.get('Unikt id','')}</div></div>
-          </div></div>
+            <div><div class="label">Namn</div><div class="pill">{base.get('Namn','')}</div></div></div>
             <div><div class="label">Företag</div><div class="pill">{base.get('Företag','')}</div></div>
             <div><div class="label">Funktion</div><div class="pill">{base.get('Funktion','')}</div></div>
             <div><div class="label">E-post</div><div class="pill">{base.get('E-post','')}</div></div>
