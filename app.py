@@ -235,8 +235,7 @@ def build_pdf(title: str, sections, results_map, contact: dict) -> bytes:
         approx_chars = max(40, int(95 * (left_w / content_w)))
         for para in str(s["text"]).split("
 
-"):  
-            for ln in textwrap.wrap(para, width=approx_chars):
+"):   for ln in textwrap.wrap(para, width=approx_chars):
                 y_left -= 16
             y_left -= 4
         left_span = section_top - y_left
@@ -281,7 +280,7 @@ def build_pdf(title: str, sections, results_map, contact: dict) -> bytes:
         y_left_draw = section_top
         for para in str(s["text"]).split("
 
-"):  
+"):    
             for ln in textwrap.wrap(para, width=approx_chars):
                 y = ensure(16); pdf.drawString(margin, y_left_draw, ln); y_left_draw -= 16
             y_left_draw -= 4
@@ -485,7 +484,7 @@ def render_assessment():
         f"""
         <div class="contact-card">
           <div class="contact-grid">
-            <div><div class=\"label\">Namn<\/div><div class=\"pill\">{(base.get('Förnamn','') + ' ' + base.get('Efternamn','')).strip()}<\/div></div>
+            <div><div class="label">Namn</div><div class="pill">{(base.get('Förnamn','') + ' ' + base.get('Efternamn','')).strip()}</div></div>
             <div><div class="label">Företag</div><div class="pill">{base.get('Företag','')}</div></div>
             <div><div class="label">E-post</div><div class="pill">{base.get('E-post','')}</div></div>
             <div><div class="label">Telefon</div><div class="pill">{base.get('Telefon','')}</div></div>
@@ -507,7 +506,7 @@ def render_assessment():
             st.header(s["title"])
             for p in s["text"].split("
 
-"):  
+"):    
                 st.write(p)
         with right:
             key, mx = s["key"], s["max"]
