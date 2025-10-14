@@ -4,7 +4,7 @@ import { jsPDF } from "jspdf";
 import html2canvas from "html2canvas";
 
 // =====================================================================
-// Självskattning – Funktionellt ledarskap (stabil TSX, inga oklch-färger)
+## Självskattning – Funktionellt ledarskap (stabil TSX, inga oklch-färger)
 // =====================================================================
 
 // ---------- Färgpalett (HEX/RGB) ----------
