@@ -427,7 +427,14 @@ const ReportView: React.FC<{ contact: Contact; onRestart: () => void }> = ({ con
         const id = generateMeasurementId();
         setMeasurementId(id);
         const { base64, fileName } = await buildPdfBase64();
-        await postToWebhook($1, id);
+        await postToWebhook(
+          WEBHOOK_URL,
+          contact,
+          answers,
+          WEBHOOK_SECRET,
+          { pdfBase64: base64, fileName },
+          id
+        );
       } catch (e) {
         console.warn('Kunde inte skapa/skicka PDF till SharePoint:', e);
       }
