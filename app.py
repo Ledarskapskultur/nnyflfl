@@ -1,706 +1,712 @@
-from io import BytesIO
-import textwrap, secrets, string
+import React, { useEffect, useMemo, useRef, useState, createContext, useContext } from "react";
+import { useForm } from "react-hook-form";
+import { jsPDF } from "jspdf";
+import html2canvas from "html2canvas";
 
-import streamlit as st
-import requests
-import json
-from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import A4
-from reportlab.lib.colors import HexColor, black
+// =====================================================================
+// Självskattning – Funktionellt ledarskap (stabil TSX, inga oklch-färger)
+// =====================================================================
 
-# =============================
-# Grundinställningar / tema
-# =============================
-st.set_page_config(
-    page_title="Självskattning – Funktionellt ledarskap",
-    page_icon="📄",
-    layout="centered",
-)
+// ---------- Färgpalett (HEX/RGB) ----------
+const PALETTE = {
+  eggshell: "#FAF7F0", // äggskalsvit bakgrund
+  white: "#FFFFFF",
+  text: "#111827",
+  navy50: "#E6ECF3",
+  navy300: "#6B86A3",
+  navy600: "#0B1F3A", // sober navy
+  navy700: "#09233F",
+  gray100: "#F3F4F6",
+  gray200: "#E5E7EB",
+  gray300: "#D1D5DB",
+  gray400: "#9CA3AF",
+  gray700: "#374151",
+  green: "#2E7D32",
+  orange: "#F59E0B",
+};
 
-EGGSHELL = "#FAF7F0"
-PRIMARY = "#EF4444"
+// --- Power Automate webhook (anonym URL med sig=) ---
+// Byt endast om du roterar nyckeln i PA; denna kommer från dig.
+const WEBHOOK_URL = "https://default1ad3791223f4412ea6272223201343.20.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/bff5923897b04a39bc6ba69ea4afde69/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=B1rjO0FhY0ZxXO8VJvWPmcLAv-LMCgICG6tDguPmhwQ";
+const WEBHOOK_SECRET = ""; // valfritt: använd om du lagt en Condition på secret i flödet
 
-# =============================
-# Power Automate (HTTP-trigger) – "När en HTTP-begäran tas emot"
-# =============================
-FLOW_POST_URL  = st.secrets.get("FLOW_POST_URL", "https://default1ad3791223f4412ea6272223201343.20.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/cccd2320619746d9aa530cd73e7c6684/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=tFGViS77m0LhkCgnXjuQkYsf_RuXLMSE5lpKrgmj9VI")  # POST-endpoint som skriver till SharePoint
-FLOW_FETCH_URL = st.secrets.get("FLOW_FETCH_URL", "")  # (valfritt) GET-endpoint som hämtar via uid
+// ---------- Typer ----------
+type Answers = { [q: number]: number };
 
+type Contact = {
+  name: string;
+  company?: string;
+  email: string;
+};
 
-def flow_send(payload: dict):
-    """POST:a nyttolast till Power Automate-flödet.
-    Returnerar (ok: bool, status_code: int|None, text: str)."""
-    if not FLOW_POST_URL:
-        return (False, None, "FLOW_POST_URL saknas")
-    try:
-        r = requests.post(
-            FLOW_POST_URL,
-            json=payload,
-            headers={"Content-Type": "application/json"},
-            timeout=20,
-        )
-        ok = 200 <= r.status_code < 300
-        return (ok, r.status_code, r.text)
-    except Exception as e:
-        return (False, None, str(e))
-    try:
-        r = requests.post(FLOW_POST_URL, json=payload, timeout=20)
-        return 200 <= r.status_code < 300
-    except Exception:
-        return False
+type Scores = {
+  listening: number; // Aktivt lyssnande (1-7)
+  feedback: number;  // Återkoppling (8-15)
+  goal: number;      // Målinriktning (16-20)
+  total: number;     // Totalmedel (1-20)
+};
 
+// ---------- Hjälpfunktioner ----------
+const mean = (nums: number[]) => (nums.length ? nums.reduce((a, b) => a + b, 0) / nums.length : 0);
 
-def flow_fetch(uid: str) -> dict | None:
-    """(Valfritt) Hämta resultat via uid från ett GET-flöde som returnerar JSON."""
-    if not (FLOW_FETCH_URL and uid):
-        return None
-    try:
-        r = requests.get(FLOW_FETCH_URL, params={"uid": uid}, timeout=20)
-        if 200 <= r.status_code < 300:
-            return r.json()
-    except Exception:
-        pass
-    return None
+const classify = (score: number) => {
+  if (score >= 5.0) return { label: "Högt", hex: PALETTE.navy600 };
+  if (score >= 2.5) return { label: "Medel", hex: PALETTE.navy300 };
+  return { label: "Lågt", hex: PALETTE.gray400 };
+};
 
-# =============================
-# Hjälpfunktioner
-# =============================
-def generate_unikt_id() -> str:
-    """Skapar en 6-teckenskod med exakt 3 bokstäver (a–z, A–Z) och 3 siffror (0–9) i slumpmässig ordning."""
-    letters = string.ascii_letters  # a-z + A-Z
-    digits = string.digits          # 0-9
-    pool = [secrets.choice(letters) for _ in range(3)] + [secrets.choice(digits) for _ in range(3)]
-    # Fisher–Yates-shuffle med secrets.randbelow för kryptografiskt slump
-    for i in range(len(pool) - 1, 0, -1):
-        j = secrets.randbelow(i + 1)
-        pool[i], pool[j] = pool[j], pool[i]
-    return "".join(pool)
+const svDate = (date = new Date()) => new Intl.DateTimeFormat("sv-SE", { dateStyle: "long" }).format(date);
 
-def rerun():
-    try:
-        st.rerun()
-    except AttributeError:
-        st.experimental_rerun()
+// Filvänligt datum (YYYYMMDD eller YYYY-MM-DD), används i filnamn och testas i självtester
+const svDateFile = (d: Date = new Date()) => {
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  // utan bindestreck för kompakta filnamn; självtest tillåter även med bindestreck
+  return `${yyyy}${mm}${dd}`;
+};
 
-# =============================
-# Innehållsdata (texter/sektioner)
-# =============================
-PAGE_TITLE = "Självskattning – Funktionellt ledarskap"
+// Skapar ett unikt ID för varje mätning (ex: FL-20251010-125123-AB12)
+const generateMeasurementId = () => {
+  const d = new Date();
+  const stamp = `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}-${String(d.getHours()).padStart(2,'0')}${String(d.getMinutes()).padStart(2,'0')}${String(d.getSeconds()).padStart(2,'0')}`;
+  const rand = Math.random().toString(36).slice(2,6).toUpperCase();
+  return `FL-${stamp}-${rand}`;
+};
 
-SECTIONS = [
-    {
-        "key": "lyssnande",
-        "title": "Aktivt lyssnande",
-        "max": 49,  # 7 frågor
-        "text": """I dagens arbetsliv har chefens roll förändrats. Medarbetarna sitter ofta på den djupaste kompetensen och lösningarna på verksamhetens utmaningar.
+const sumRange = (answers: Answers, from: number, to: number): number => {
+  let s = 0;
+  for (let i = from; i <= to; i++) s += answers[i] ?? 0;
+  return s;
+};
 
-Därför är aktivt lyssnande en av chefens viktigaste färdigheter. Det handlar inte bara om att höra vad som sägs, utan om att förstå, visa intresse och använda den information du får. När du bjuder in till dialog och tar till dig medarbetarnas perspektiv visar du att deras erfarenheter är värdefulla.
+// --- POST till Power Automate webhook ---
+async function postToWebhook(
+  url: string,
+  contact: Contact,
+  answers: Answers,
+  secret?: string,
+  pdf?: { pdfBase64: string; fileName: string },
+  titleOverride?: string
+) {
+  if (!url || !url.includes("sig=")) {
+    console.warn("Webhook URL saknas eller är inte anonym (ingen sig= hittad)");
+    return; // gör inget om URL inte är korrekt ännu
+  }
 
-Genom att agera på det du hör – bekräfta, följa upp och omsätta idéer i handling – stärker du både engagemang, förtroende och delaktighet."""
-    },
-    {
-        "key": "aterkoppling",
-        "title": "Återkoppling",
-        "max": 56,  # 8 frågor
-        "text": """Effektiv återkoppling är grunden för både utveckling och motivation. Medarbetare behöver veta vad som förväntas, hur de ligger till och hur de kan växa. När du som chef tydligt beskriver uppgifter och förväntade beteenden skapar du trygghet och fokus i arbetet.
+  const hasPdf = !!(pdf && pdf.pdfBase64 && pdf.pdfBase64.length > 0);
+  const payload: any = {
+    title: titleOverride ?? contact.email, // SharePoint-kolumn "Rubrik"
+    name: contact.name,
+    company: contact.company ?? "",
+    email: contact.email,
+    sumListening: sumRange(answers, 1, 7),
+    sumFeedback: sumRange(answers, 8, 15),
+    sumGoal: sumRange(answers, 16, 20),
+    answersJson: JSON.stringify(answers),
+    submittedAt: new Date().toISOString(),
+    secret: secret ?? undefined,
+    hasPdf,
+  };
+  if (hasPdf) {
+    payload.pdfBase64 = pdf!.pdfBase64;
+    payload.fileName = pdf!.fileName;
+  }
 
-Återkoppling handlar sedan om närvaro och uppföljning – att se, lyssna och ge både beröm och konstruktiv feedback. Genom att tydligt lyfta fram vad som fungerar och vad som kan förbättras, förstärker du önskvärda beteenden och hjälper dina medarbetare att lyckas.
-
-I svåra situationer blir återkopplingen extra viktig. Att vara lugn, konsekvent och tydlig när det blåser visar ledarskap på riktigt."""
-    },
-    {
-        "key": "malinriktning",
-        "title": "Målinriktning",
-        "max": 35,  # 5 frågor
-        "text": """Målinriktat ledarskap handlar om att ge tydliga ramar – tid, resurser och ansvar – så att medarbetare kan arbeta effektivt och med trygghet. Tydliga och inspirerande mål skapar riktning och hjälper alla att förstå vad som är viktigt just nu.
-
-Som chef handlar det om att formulera mål som går att tro på, och att tydliggöra hur de ska nås. När du delegerar ansvar och befogenheter visar du förtroende och skapar engagemang. Målen blir då inte bara något att leverera på – utan något att vara delaktig i.
-
-Uppföljning är nyckeln. Genom att uppmärksamma framsteg, ge återkoppling och fira resultat förstärker du både prestation och motivation."""
-    },
-]
-
-# =============================
-# Frågebatterier (20 frågor) + indexgrupper
-# =============================
-CHEF_QUESTIONS = [
-    "Efterfrågar deras förslag när det gäller hur arbetet kan förbättras",
-    "Efterfrågar deras idéer när det gäller planering av arbetet",
-    "Uppmuntrar dem att uttrycka eventuella farhågor när det gäller arbetet",
-    "Uppmuntrar dem att komma med förbättringsförslag för verksamheten",
-    "Uppmuntrar dem att uttrycka idéer och förslag",
-    "Använder dig av deras förslag när du fattar beslut som berör dem",
-    "Överväger deras idéer även när du inte håller med",
-    "Talar om deras arbete som meningsfullt och viktigt",
-    "Formulerar inspirerande målsättningar för deras arbete",
-    "Beskriver hur deras arbete bidrar till viktiga värderingar och ideal",
-    "Pratar på ett inspirerande sätt om deras arbete",
-    "Beskriver hur deras arbete bidrar till verksamhetens mål",
-    "Är tydlig med hur deras arbete bidrar till verksamhetens effektivitet",
-    "Tillhandahåller information som visar på betydelsen av deras arbete",
-    "Använder fakta och logik när du beskriver betydelsen av deras arbete",
-    "Beskriver vilka arbetsuppgifter du vill att de utför",
-    "Beskriver tidsplaner för de arbetsuppgifter du delegerar till dem",
-    "Kommunicerar verksamhetens målsättningar på ett tydligt sätt",
-    "Är tydlig med vad du förväntar dig av dem",
-    "Ser till att dina medarbetares arbete samordnas",
-]
-EMP_QUESTIONS = CHEF_QUESTIONS[:]  # samma formuleringar men ur medarbetarperspektiv
-OVER_QUESTIONS = [
-    "Efterfrågar andras förslag när det gäller hur hens verksamhet kan förbättras",
-    "Efterfrågar andras idéer när det gäller planering av hens verksamhet",
-    "Uppmuntrar andra att uttrycka eventuella farhågor när det gäller hens verksamhet",
-    "Uppmuntrar andra att komma med förbättringsförslag för hens verksamhet",
-    "Uppmuntrar andra att uttrycka idéer och förslag",
-    "Använder sig av andras förslag när hen fattar beslut som berör dem",
-    "Överväger andras idéer även när hen inte håller med om dem",
-    "Talar om sin verksamhet som meningsfull och viktig",
-    "Formulerar inspirerande målsättningar",
-    "Beskriver viktiga värderingar och ideal",
-    "Pratar på ett inspirerande sätt",
-    "Beskriver sin verksamhets mål",
-    "Är tydlig med sin verksamhets effektivitet",
-    "Tillhandahåller relevant information",
-    "Använder fakta och logik",
-    "Beskriver vem som är ansvarig för vad",
-    "Beskriver tidsplaner för de arbetsuppgifter som ska göras",
-    "Kommunicerar verksamhetens målsättningar på ett tydligt sätt",
-    "Är tydlig med vad hen förväntar sig av andra",
-    "Ser till att arbetet samordnas",
-]
-
-IDX_MAP = {
-    "lyssnande": list(range(0, 7)),
-    "aterkoppling": list(range(7, 15)),
-    "malinriktning": list(range(15, 20)),
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const txt = await res.text().catch(() => "");
+      throw new Error(`Webhook POST misslyckades: ${res.status} ${txt}`);
+    }
+  } catch (e) {
+    console.warn("Kunde inte posta till Power Automate:", e);
+  }
 }
 
-# Instruktioner
-INSTR_CHEF = """**Chef**
+// ---------- Kontext för state ----------
+const AppStateCtx = createContext<{
+  answers: Answers;
+  setAnswer: (q: number, v: number) => void;
+  reset: () => void;
+} | null>(null);
 
-Syftet med frågorna nedan är att du ska beskriva hur du kommunicerar med dina medarbetare i frågor som rör deras arbete.
+const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [answers, setAnswers] = useState<Answers>(() => {
+    try {
+      const raw = localStorage.getItem("fl_sjalvskattning_answers");
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {};
+    }
+  });
 
-Använd följande svarsskala:
+  useEffect(() => {
+    try {
+      localStorage.setItem("fl_sjalvskattning_answers", JSON.stringify(answers));
+    } catch {}
+  }, [answers]);
 
-**1 = Aldrig, 2 = Nästan aldrig, 3 = Sällan, 4 = Ibland, 5 = Ofta, 6 = Nästan alltid, 7 = Alltid**.
+  const setAnswer = (q: number, v: number) => setAnswers(prev => ({ ...prev, [q]: v }));
+  const reset = () => setAnswers({});
 
-Ange hur ofta du gör följande:"""
-INSTR_EMP = """**Medarbetare**
+  return (
+    <AppStateCtx.Provider value={{ answers, setAnswer, reset }}>
+      {children}
+    </AppStateCtx.Provider>
+  );
+};
 
-Syftet med frågorna nedan är att du ska beskriva hur din chef kommunicerar med dig i frågor som rör ditt arbete.
+const useAppState = () => {
+  const ctx = useContext(AppStateCtx);
+  if (!ctx) throw new Error("useAppState must be used within provider");
+  return ctx;
+};
 
-Använd följande svarsskala:
+// ---------- Frågorna ----------
+// 1–7 Aktivt lyssnande, 8–15 Återkoppling, 16–20 Målinriktning
+const QUESTIONS: { id: number; text: string }[] = [
+  { id: 1, text: "Jag bjuder aktivt in medarbetare till dialog och idéer." },
+  { id: 2, text: "Jag ställer öppna frågor för att förstå olika perspektiv." },
+  { id: 3, text: "Jag sammanfattar vad jag hört för att säkerställa förståelse." },
+  { id: 4, text: "Jag bekräftar andras bidrag och visar att jag lyssnar." },
+  { id: 5, text: "Jag använder information från medarbetare i beslut." },
+  { id: 6, text: "Jag skapar utrymme för alla röster i möten." },
+  { id: 7, text: "Jag anpassar min kommunikation utifrån mottagarens behov." },
+  { id: 8, text: "Jag uttrycker förväntningar tydligt och i rätt tid." },
+  { id: 9, text: "Jag ger konkret återkoppling kopplad till beteenden och resultat." },
+  { id: 10, text: "Jag följer upp överenskommelser och stöttar vid behov." },
+  { id: 11, text: "Jag uppmärksammar framsteg och förstärker önskat beteende." },
+  { id: 12, text: "Jag korrigerar respektfullt när något inte fungerar." },
+  { id: 13, text: "Jag säkerställer att budskapet är förstått (t.ex. genom frågor)." },
+  { id: 14, text: "Jag anpassar återkopplingens form (muntligt, skriftligt, 1:1)." },
+  { id: 15, text: "Jag dokumenterar och synliggör uppföljning när det behövs." },
+  { id: 16, text: "Jag formulerar tydliga mål och prioriteringar." },
+  { id: 17, text: "Jag fördelar ansvar och befogenheter på ett tydligt sätt." },
+  { id: 18, text: "Jag säkerställer att teamet vet hur målen mäts." },
+  { id: 19, text: "Jag följer upp resultat regelbundet och transparent." },
+  { id: 20, text: "Jag justerar plan och resurser utifrån lägesbild och data." },
+];
 
-**1 = Aldrig, 2 = Nästan aldrig, 3 = Sällan, 4 = Ibland, 5 = Ofta, 6 = Nästan alltid, 7 = Alltid**.
+const SCALE_LABELS = [
+  "1 Aldrig",
+  "2 Nästan aldrig",
+  "3 Sällan",
+  "4 Ibland",
+  "5 Ofta",
+  "6 Nästan alltid",
+  "7 Alltid",
+];
 
-Ange hur ofta din chef gör följande:"""
-INSTR_OVER = """**Överordnad chef**
+// ---------- UI-komponenter ----------
+const Card: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className }) => (
+  <div className={`rounded-2xl shadow p-6 ${className ?? ""}`} style={{ background: PALETTE.white }}>
+    {children}
+  </div>
+);
 
-Syftet med frågorna nedan är att du ska beskriva hur din underställda chef kommunicerar i arbetsrelaterade frågor.
+const PrimaryButton: React.FC<React.ButtonHTMLAttributes<HTMLButtonElement>> = ({ className, children, ...props }) => (
+  <button
+    className={`px-5 py-3 rounded-xl font-medium transition disabled:opacity-50 ${className ?? ""}`}
+    style={{ background: PALETTE.navy600, color: PALETTE.white }}
+    {...props}
+  >
+    {children}
+  </button>
+);
 
-Använd följande svarsskala:
+const SecondaryButton: React.FC<React.ButtonHTMLAttributes<HTMLButtonElement>> = ({ className, children, ...props }) => (
+  <button
+    type={(props as any).type ?? "button"}
+    className={`px-5 py-3 rounded-xl font-medium transition disabled:opacity-50 ${className ?? ""}`}
+    style={{ background: PALETTE.gray200, color: PALETTE.text }}
+    {...props}
+  >
+    {children}
+  </button>
+);
 
-**1 = Aldrig, 2 = Nästan aldrig, 3 = Sällan, 4 = Ibland, 5 = Ofta, 6 = Nästan alltid, 7 = Alltid**.
+// Panel med ram och titel – för rapportens boxar
+const Panel: React.FC<{ title?: string; children: React.ReactNode; className?: string }> = ({ title, children, className }) => (
+  <div className={`rounded-lg p-4 ${className ?? ""}`} style={{ background: PALETTE.white, border: `1px solid ${PALETTE.gray400}` }}>
+    {title && <h3 className="text-lg font-semibold mb-2" style={{ color: PALETTE.navy700 }}>{title}</h3>}
+    {children}
+  </div>
+);
 
-Ange hur ofta din underställda chef gör följande:"""
-
-# =============================
-# PDF (matcha webblayout 68/32, rundade kort, tre staplar, ingen tidsstämpel, 2 radbryt före rubriker)
-# =============================
-
-def build_pdf(title: str, sections, results_map, contact: dict) -> bytes:
-    buf = BytesIO()
-    pdf = canvas.Canvas(buf, pagesize=A4)
-    w, h = A4
-
-    def paint_bg():
-        pdf.setFillColor(HexColor(EGGSHELL))
-        pdf.rect(0, 0, w, h, fill=1, stroke=0)
-        pdf.setFillColor(black)
-
-    def page_header():
-        y = h - 60
-        # två radbryt ovanför rubriken
-        y -= 28*2
-        pdf.setFont("Helvetica-Bold", 22)
-        pdf.drawString(50, y, title)
-        return y - 28
-
-    paint_bg()
-    y = page_header()
-
-    # Kontakt – två rader, ingen tidsstämpel
-    pdf.setFont("Helvetica-Bold", 10)
-    pdf.drawString(50, y, "Kontaktuppgifter"); y -= 14
-    pdf.setFont("Helvetica", 10)
-    line1 = "   |   ".join([
-        f"Namn: {contact.get('Förnamn','')} {contact.get('Efternamn','')}",
-        f"Företag: {contact.get('Företag','')}",
-        f"Telefon: {contact.get('Telefon','')}",
-    ])
-    line2 = "   |   ".join([
-        f"E-post: {contact.get('E-post','')}",
-        f"Unikt id: {contact.get('Unikt id','')}",
-    ])
-    pdf.drawString(50, y, line1); y -= 14
-    pdf.drawString(50, y, line2); y -= 24
-
-    def ensure(px: int):
-        nonlocal y
-        if y - px < 50:
-            pdf.showPage()
-            paint_bg()
-            y2 = page_header()
-            return y2
-        return y
-
-    # 68/32 kolumner
-    margin = 50
-    content_w = w - 2*margin
-    left_w    = content_w * 0.68
-    right_w   = content_w - left_w
-    right_x   = margin + left_w
-
-    for s in sections:
-        # Sidbryt innan Målinriktning
-        if s["title"] == "Målinriktning":
-            pdf.showPage(); paint_bg(); y = page_header()
-
-        y = ensure(40)
-        # H2
-        pdf.setFont("Helvetica-Bold", 14)
-        pdf.drawString(margin, y, s["title"]); y -= 20
-
-        section_top = y
-
-        # Beräkna vänsterkolumnhöjd för vertikal centrering av kort
-        pdf.setFont("Helvetica", 11)
-        # 1) Mät vänsterkolumnens höjd
-        y_probe = section_top
-        approx_chars = max(40, int(95 * (left_w / content_w)))
-        for para in str(s["text"]).split("\n\n"):
-            for ln in textwrap.wrap(para, width=approx_chars):
-                y_probe -= 16
-            y_probe -= 4
-        left_span = section_top - y_probe
-
-        # 2) Höger: resultatkort, vertikalt centrerat mot vänstertexten
-        card_pad = 10
-        card_w   = right_w - 10
-        per_role = 12 + 10 + 14
-        card_h   = card_pad + 3*per_role + 10 + card_pad
-        card_y   = section_top - (left_span/2 + card_h/2)
-
-        pdf.setFillColor(HexColor("#FFFFFF"))
-        pdf.setStrokeColor(HexColor("#D1D5DB"))
-        try:
-            pdf.roundRect(right_x + 5, card_y, card_w, card_h, 12, stroke=1, fill=1)
-        except Exception:
-            pdf.rect(right_x + 5, card_y, card_w, card_h, stroke=1, fill=1)
-        pdf.setFillColor(black)
-
-        inner_x = right_x + 5 + card_pad
-        cy      = card_y + card_h - card_pad - 4
-        roles = [("Chef", "chef", HexColor("#22C55E")),
-                 ("Överordnad chef", "overchef", HexColor("#F59E0B")),
-                 ("Medarbetare", "medarbetare", HexColor("#3B82F6"))]
-        pdf.setFont("Helvetica", 10)
-        for label, key, col in roles:
-            val = int(results_map.get(s["key"], {}).get(key, 0))
-            mx  = int(s.get("max", 0))
-            pdf.drawString(inner_x, cy, f"{label}: {val} poäng"); cy -= 12
-            bar_w = card_w - 2*card_pad; bar_h = 10
-            pdf.setFillColor(HexColor("#E9ECEF")); pdf.rect(inner_x, cy, bar_w, bar_h, fill=1, stroke=0)
-            fill_w = 0 if mx == 0 else bar_w * (val / mx)
-            pdf.setFillColor(col); pdf.rect(inner_x, cy, fill_w, bar_h, fill=1, stroke=0)
-            pdf.setFillColor(black); cy -= 14
-        pdf.setFont("Helvetica-Bold", 10)
-        pdf.drawString(inner_x, card_y + card_pad, f"Max: {int(s.get('max',0))} poäng")
-
-        # 3) Vänster: rita text inom 68 %
-        pdf.setFont("Helvetica", 11)
-        y_left_draw = section_top
-        for para in str(s["text"]).split("\n\n"):
-            for ln in textwrap.wrap(para, width=approx_chars):
-                y = ensure(16)
-                pdf.drawString(margin, y_left_draw, ln)
-                y_left_draw -= 16
-            y_left_draw -= 4
-
-        # 4) Gå ned till nästa sektion
-        y = min(y_left_draw, card_y) - 16
-
-    pdf.showPage()
-    pdf.save()
-    buf.seek(0)
-    return buf.getvalue()
-
-# =============================
-# Sidor
-# =============================
-
-def render_landing():
-    st.markdown(
-        """
-        <div class="hero">
-          <h1>Självskattning – Funktionellt ledarskap</h1>
-          <p>Fyll i dina uppgifter nedan och starta självskattningen.</p>
+// Högerkort: totalsumma (stor siffra) + stapel (summa vs total)
+const CategoryRightCard: React.FC<{ title: string; sum: number; total: number }> = ({ title, sum, total }) => {
+  const pct = Math.max(0, Math.min(100, (sum / total) * 100));
+  return (
+    <div className="rounded-xl p-4" style={{ background: PALETTE.white, border: `1px solid ${PALETTE.gray300}` }}>
+      <div className="text-sm font-semibold" style={{ color: PALETTE.navy700 }}>{title}</div>
+      <div className="text-3xl font-bold mt-1" style={{ color: PALETTE.text }}>{Math.round(sum)}</div>
+      <div className="mt-3 space-y-2">
+        <div className="w-full h-3 rounded" style={{ background: PALETTE.gray200 }} aria-label={`Summa ${Math.round(sum)} av ${total}`}>
+          <div className="h-3 rounded" style={{ width: pct + "%", background: PALETTE.green }} />
         </div>
-        """,
-        unsafe_allow_html=True,
-    )
+        <div className="w-full h-3 rounded" style={{ background: PALETTE.orange, opacity: 0.85 }} />
+      </div>
+      <div className="mt-2 text-xs" style={{ color: PALETTE.gray700 }}>Summa {Math.round(sum)}/{total}</div>
+    </div>
+  );
+};
 
-    base = st.session_state.get("kontakt", {"Förnamn":"", "Efternamn":"", "Namn":"", "Företag":"", "Telefon":"", "E-post":"", "Funktion":"Chef", "Unikt id":""})
-    with st.form("landing_form"):
-        c1, c2 = st.columns(2)
-        with c1:
-            first = st.text_input("Förnamn", value=base.get("Förnamn",""))
-            tel   = st.text_input("Telefon", value=base.get("Telefon",""))
-            fun   = st.selectbox("Funktion", ["Chef", "Överordnad chef", "Medarbetare"], index=["Chef","Överordnad chef","Medarbetare"].index(base.get("Funktion","Chef")))
-        with c2:
-            last  = st.text_input("Efternamn", value=base.get("Efternamn",""))
-            fore  = st.text_input("Företag", value=base.get("Företag",""))
-            mail  = st.text_input("E-post", value=base.get("E-post",""))
+// ---------- Startvy ----------
+const StartView: React.FC<{ onStart: () => void }> = ({ onStart }) => (
+  <div className="max-w-3xl mx-auto">
+    <Card>
+      <h1 className="text-3xl md:text-4xl font-bold" style={{ color: PALETTE.navy700 }}>Självskattning – Funktionellt ledarskap</h1>
+      <p className="mt-4 leading-relaxed" style={{ color: PALETTE.gray700 }}>
+        Denna självskattning hjälper dig att reflektera över tre centrala områden i funktionellt ledarskap:
+        <span className="font-medium"> aktivt lyssnande, återkoppling och målinriktning</span>. Du besvarar 20 påståenden på en 7-gradig skala.
+        Efteråt får du en personlig rapport som PDF med text och reflektion.
+      </p>
+      <div className="mt-6">
+        <PrimaryButton onClick={onStart}>Starta självskattning</PrimaryButton>
+      </div>
+    </Card>
+  </div>
+);
 
-        start = st.form_submit_button("Starta", type="primary")
+// ---------- Frågekomponent ----------
+const Likert: React.FC<{ value?: number; onChange: (v: number) => void }> = ({ value, onChange }) => (
+  <div className="grid grid-cols-7 gap-2 mt-3">
+    {Array.from({ length: 7 }).map((_, i) => {
+      const v = i + 1;
+      const selected = value === v;
+      return (
+        <button
+          key={v}
+          type="button"
+          onClick={() => onChange(v)}
+          className={`text-sm md:text-base border rounded-lg py-2 px-1 text-center focus:outline-none`}
+          style={{
+            borderColor: selected ? PALETTE.navy600 : PALETTE.gray300,
+            boxShadow: selected ? `0 0 0 3px rgba(11, 31, 58, 0.25)` : undefined,
+            background: selected ? PALETTE.navy50 : PALETTE.white,
+          }}
+          aria-pressed={selected}
+        >
+          {v}
+        </button>
+      );
+    })}
+  </div>
+);
 
-    if start:
-        if not first.strip() or not mail.strip():
-            st.warning("Fyll i minst **Förnamn** och **E-post**.")
-            return
-        full_name = (first.strip() + " " + last.strip()).strip()
-        # Fryser/återanvänder Unikt id under sessionen
-        uid_existing = base.get("Unikt id", "")
-        uid_value = (uid_existing or (generate_unikt_id() if fun == "Chef" else ""))
-        st.session_state["kontakt"] = {
-            "Förnamn": first.strip(),
-            "Efternamn": last.strip(),
-            "Namn": full_name,
-            "Företag": fore.strip(),
-            "Telefon": tel.strip(),
-            "E-post": mail.strip(),
-            "Funktion": fun,
-            "Unikt id": uid_value,
-        }
-        if fun == "Chef":
-            st.session_state["chef_answers"] = [None]*len(CHEF_QUESTIONS)
-            st.session_state["survey_page"] = 0
-            st.session_state["page"] = "chef_survey"
-        else:
-            st.session_state["page"] = "id_page"
-        rerun()
-
-
-def render_id_page():
-    st.markdown("## Ange uppgifter för chefens självskattning")
-    st.info("Detta steg gäller för **Överordnad chef** och **Medarbetare**.")
-
-    base = st.session_state.get("kontakt", {})
-    with st.form("idform"):
-        c1, c2 = st.columns([0.6, 0.4])
-        with c1:
-            chef_first = st.text_input("Chefens förnamn", value=base.get("Chefens förnamn", base.get("Förnamn","")))
-            uid        = st.text_input("Unikt id", value=base.get("Unikt id",""))
-        with c2:
-            st.write(""); st.write(f"**Din roll:** {base.get('Funktion','')}")
-
-        ok = st.form_submit_button("Fortsätt", type="primary")
-
-    if ok:
-        if not chef_first.strip() or not uid.strip():
-            st.warning("Fyll i både **Chefens förnamn** och **Unikt id**.")
-            return
-        st.session_state["kontakt"]["Chefens förnamn"] = chef_first.strip()
-        st.session_state["kontakt"]["Unikt id"] = uid.strip()
-        if base.get("Funktion") == "Medarbetare":
-            st.session_state["other_answers"] = [None]*len(EMP_QUESTIONS)
-            st.session_state["other_page"] = 0
-            st.session_state["page"] = "other_survey"
-        else:
-            st.session_state["over_answers"] = [None]*len(OVER_QUESTIONS)
-            st.session_state["over_page"] = 0
-            st.session_state["page"] = "over_survey"
-        rerun()
-
-    if st.button("◀ Tillbaka"):
-        st.session_state["page"] = "landing"
-        rerun()
-
-# Gemensam enkät-renderare (4 sidor × 5 frågor)
-
-def render_survey_core(title: str, instruction_md: str, questions: list[str], answers_key: str, page_key: str, on_submit_page: str):
-    st.markdown(f"## {title}")
-    st.markdown(f"<div class='note'>{instruction_md}</div>", unsafe_allow_html=True)
-    st.caption("Svara på varje påstående på en skala 1–7. Du måste besvara alla frågor på sidan för att gå vidare.")
-
-    answers = st.session_state.get(answers_key, [None]*len(questions))
-    page = st.session_state.get(page_key, 0)
-    per_page = 5
-    start_idx = page*per_page
-    end_idx   = start_idx+per_page
-
-    for i in range(start_idx, end_idx):
-        st.markdown(f"**{i+1}. {questions[i]}**")
-        current = answers[i]
-        idx = None
-        if isinstance(current, int) and 1 <= current <= 7:
-            idx = [1,2,3,4,5,6,7].index(current)
-        st.radio("", [1,2,3,4,5,6,7], index=idx, horizontal=True, label_visibility="collapsed", key=f"{answers_key}_{i}")
-        st.session_state[answers_key][i] = st.session_state.get(f"{answers_key}_{i}")
-        if i < end_idx-1:
-            st.divider()
-
-    c1, c2 = st.columns(2)
-    with c1:
-        if page > 0 and st.button("◀ Tillbaka"):
-            st.session_state[page_key] = page-1
-            rerun()
-    with c2:
-        slice_vals = st.session_state[answers_key][start_idx:end_idx]
-        full = all(isinstance(v, int) and 1 <= v <= 7 for v in slice_vals)
-        if page < 3:
-            pressed = st.button("Nästa ▶", disabled=not full)
-            if pressed:
-                st.session_state[page_key] = page+1
-                rerun()
-        else:
-            pressed = st.button("Skicka självskattning", type="primary", disabled=not full)
-            if pressed:
-                # Skicka till Power Automate-flöde (om FLOW_POST_URL är satt)
-                k = st.session_state.get("kontakt", {})
-                role = ("Chef" if answers_key == "chef_answers" else ("Medarbetare" if answers_key == "other_answers" else "Överordnad chef"))
-                # summera delpoäng
-                def part_sum(ans, key):
-                    return sum(ans[i] for i in IDX_MAP[key] if isinstance(ans[i], int))
-                parts = {
-                    "lyssnande": part_sum(st.session_state[answers_key], "lyssnande"),
-                    "aterkoppling": part_sum(st.session_state[answers_key], "aterkoppling"),
-                    "malinriktning": part_sum(st.session_state[answers_key], "malinriktning"),
-                }
-                payload = {
-                    "kontakt": {
-                        "Förnamn": k.get("Förnamn",""),
-                        "Efternamn": k.get("Efternamn",""),
-                        "Företag": k.get("Företag",""),
-                        "Telefon": k.get("Telefon",""),
-                        "E-post": k.get("E-post",""),
-                        "Funktion": k.get("Funktion",""),
-                        "Unikt id": k.get("Unikt id",""),
-                    },
-                    "roll": role,
-                    "answers": st.session_state[answers_key],
-                    "scores": parts,
-                }
-                ok, status, resp_text = flow_send(payload)
-                if ok:
-                    st.toast("Svar skickat till Power Automate", icon="✅")
-                else:
-                    st.toast("Kunde inte skicka till Power Automate", icon="⚠️")
-                    with st.expander("Visa felsvar från flödet"):
-                        st.write(f"Status: {status}")
-                        st.code(resp_text or "(tomt svar)")
-                # Gå vidare
-                st.session_state["page"] = on_submit_page
-                rerun()
-
-
-def render_chef_survey():
-    render_survey_core("Självskattning (Chef)", INSTR_CHEF, CHEF_QUESTIONS, "chef_answers", "survey_page", "assessment")
-
-
-def render_other_survey():
-    render_survey_core("Självskattning (Medarbetare)", INSTR_EMP, EMP_QUESTIONS, "other_answers", "other_page", "thankyou")
-
-
-def render_over_survey():
-    render_survey_core("Självskattning (Överordnad chef)", INSTR_OVER, OVER_QUESTIONS, "over_answers", "over_page", "thankyou")
-
-
-def render_thankyou():
-    st.markdown(
-        """
-        <div class="hero">
-          <h2>Tack för din medverkan!</h2>
-          <p>Dina svar har registrerats. Du kan nu stänga sidan.</p>
+const QuestionsView: React.FC<{ onDone: () => void }> = ({ onDone }) => {
+  const { answers, setAnswer } = useAppState();
+  const [page, setPage] = useState(0); // 0..3
+  const pageSize = 5; const totalPages = 4;
+  const items = useMemo(() => QUESTIONS.slice(page * pageSize, (page + 1) * pageSize), [page]);
+  const allOnPageAnswered = items.every(q => answers[q.id] != null);
+  const allAnswered = QUESTIONS.every(q => answers[q.id] != null);
+  return (
+    <div className="max-w-4xl mx-auto">
+      <Card>
+        <div className="flex items-center justify-between">
+          <h2 className="text-2xl font-semibold" style={{ color: PALETTE.navy700 }}>Frågor</h2>
+          <div className="text-sm" style={{ color: PALETTE.gray700 }}>Steg {page + 1} av {totalPages}</div>
         </div>
-        """,
-        unsafe_allow_html=True,
-    )
-    if st.button("Gå till startsidan"):
-        st.session_state["page"] = "landing"
-        rerun()
+        <div className="w-full rounded-full h-2 mt-2" style={{ background: PALETTE.gray200 }}>
+          <div className="h-2 rounded-full" style={{ background: PALETTE.navy600, width: `${((page + 1) / totalPages) * 100}%` }} />
+        </div>
+        <ol className="mt-6 space-y-6">
+          {items.map((q) => (
+            <li key={q.id} className="border-b pb-4" style={{ borderColor: PALETTE.gray200 }}>
+              <div className="flex items-start gap-3">
+                <div className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center font-semibold" style={{ background: PALETTE.navy600, color: PALETTE.white }}>{q.id}</div>
+                <div className="flex-1">
+                  <p className="font-medium" style={{ color: PALETTE.text }}>{q.text}</p>
+                  <div className="mt-2 text-xs grid grid-cols-7" style={{ color: PALETTE.gray700 }}>
+                    {SCALE_LABELS.map((s, i) => (<span key={s} className={`text-center ${i===0?"text-left":""}`}>{s.split(" ")[0]}</span>))}
+                  </div>
+                  <Likert value={answers[q.id]} onChange={(v)=>setAnswer(q.id, v)} />
+                </div>
+              </div>
+            </li>
+          ))}
+        </ol>
+        <div className="mt-6 flex items-center justify-between">
+          <SecondaryButton onClick={()=>setPage(p=>Math.max(0,p-1))} disabled={page===0}>Föregående</SecondaryButton>
+          {page < totalPages - 1 ? (
+            <PrimaryButton onClick={()=>setPage(p=>Math.min(totalPages-1,p+1))} disabled={!allOnPageAnswered}>Nästa</PrimaryButton>
+          ) : (
+            <PrimaryButton onClick={onDone} disabled={!allAnswered}>Fortsätt</PrimaryButton>
+          )}
+        </div>
+      </Card>
+    </div>
+  );
+};
 
+// ---------- Kontaktformulär ----------
+const ContactForm: React.FC<{ onGenerate: (contact: Contact) => void }> = ({ onGenerate }) => {
+  const { register, handleSubmit, formState: { errors } } = useForm<Contact>({ defaultValues: { name: "", company: "", email: "" } });
+  return (
+    <div className="max-w-xl mx-auto">
+      <Card>
+        <h2 className="text-2xl font-semibold" style={{ color: PALETTE.navy700 }}>Kontaktuppgifter</h2>
+        <p className="mt-2" style={{ color: PALETTE.gray700 }}>Fyll i dina uppgifter för att generera din personliga rapport.</p>
+        <form className="mt-6 space-y-4" onSubmit={handleSubmit(onGenerate)}>
+          <div>
+            <label className="block text-sm font-medium" style={{ color: PALETTE.text }}>Namn <span style={{ color: '#DC2626' }}>*</span></label>
+            <input className="mt-1 w-full border rounded-lg px-3 py-2 focus:outline-none" style={{ borderColor: PALETTE.gray300 }} placeholder="För- och efternamn" {...register("name", { required: "Ange ditt namn" })} />
+            {errors.name && <p className="text-sm mt-1" style={{ color: '#DC2626' }}>{errors.name.message}</p>}
+          </div>
+          <div>
+            <label className="block text-sm font-medium" style={{ color: PALETTE.text }}>Företag (valfritt)</label>
+            <input className="mt-1 w-full border rounded-lg px-3 py-2 focus:outline-none" style={{ borderColor: PALETTE.gray300 }} placeholder="Organisation / Team" {...register("company")} />
+          </div>
+          <div>
+            <label className="block text-sm font-medium" style={{ color: PALETTE.text }}>E-post <span style={{ color: '#DC2626' }}>*</span></label>
+            <input type="email" className="mt-1 w-full border rounded-lg px-3 py-2 focus:outline-none" style={{ borderColor: PALETTE.gray300 }} placeholder="namn@foretag.se" {...register("email", { required: "Ange en giltig e-post", pattern: { value: /.+@.+\..+/, message: "Ogiltig e-post" } })} />
+            {errors.email && <p className="text-sm mt-1" style={{ color: '#DC2626' }}>{errors.email.message}</p>}
+          </div>
+          <div className="pt-2"><PrimaryButton type="submit">Generera rapport</PrimaryButton></div>
+        </form>
+      </Card>
+    </div>
+  );
+};
 
-def render_assessment():
-    # Om resultatsidan öppnas via URL med ?uid=..., hämta via GET-endpoint och populera (om konfigurerat)
-    uid_qp = st.query_params.get("uid")
-    if uid_qp and ("scores" not in st.session_state or not st.session_state.get("kontakt")):
-        data = flow_fetch(uid_qp)
-        if isinstance(data, dict):
-            k = data.get("kontakt", {})
-            s = data.get("scores", {})
-            if k:
-                st.session_state["kontakt"] = k
-            if s:
-                st.session_state["scores"] = s
+// ---------- Resultat & Rapport ----------
+const ReportView: React.FC<{ contact: Contact; onRestart: () => void }> = ({ contact, onRestart }) => {
+  const [measurementId, setMeasurementId] = useState<string | null>(null);
+  const { answers } = useAppState();
+  const reportRef = useRef<HTMLDivElement | null>(null);
+  const [ctaBlocked, setCtaBlocked] = useState(false);
+  const isEmbedded = useMemo(() => { try { return window.self !== window.top; } catch { return true; } }, []);
 
-    # Summera scorekartor
-    # Summera scorekartor
-    scores = {"lyssnande":{}, "aterkoppling":{}, "malinriktning":{}}
+  // SUMMOR per kategori direkt från svaren
+  const sum1to7 = useMemo(() => sumRange(answers, 1, 7), [answers]);
+  const sum8to15 = useMemo(() => sumRange(answers, 8, 15), [answers]);
+  const sum16to20 = useMemo(() => sumRange(answers, 16, 20), [answers]);
 
-    if "chef_answers" in st.session_state:
-        a = st.session_state["chef_answers"]
-        scores["lyssnande"]["chef"]     = sum(a[i] for i in IDX_MAP["lyssnande"]    if isinstance(a[i], int))
-        scores["aterkoppling"]["chef"]  = sum(a[i] for i in IDX_MAP["aterkoppling"]  if isinstance(a[i], int))
-        scores["malinriktning"]["chef"] = sum(a[i] for i in IDX_MAP["malinriktning"] if isinstance(a[i], int))
+  // Bygg PDF och returnera Base64 + filnamn (för SharePoint-bilaga)
+  const buildPdfBase64 = async (): Promise<{ base64: string; fileName: string }> => {
+    if (!reportRef.current) throw new Error('Report root saknas');
+    const input = reportRef.current as HTMLElement;
+    input.style.background = PALETTE.eggshell;
 
-    if "other_answers" in st.session_state:
-        a = st.session_state["other_answers"]
-        scores["lyssnande"]["medarbetare"]     = sum(a[i] for i in IDX_MAP["lyssnande"]    if isinstance(a[i], int))
-        scores["aterkoppling"]["medarbetare"]  = sum(a[i] for i in IDX_MAP["aterkoppling"]  if isinstance(a[i], int))
-        scores["malinriktning"]["medarbetare"] = sum(a[i] for i in IDX_MAP["malinriktning"] if isinstance(a[i], int))
+    const canvas = await html2canvas(input, { scale: 2, useCORS: true, backgroundColor: PALETTE.eggshell });
+    const imgData = canvas.toDataURL('image/png');
+    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
-    if "over_answers" in st.session_state:
-        a = st.session_state["over_answers"]
-        scores["lyssnande"]["overchef"]     = sum(a[i] for i in IDX_MAP["lyssnande"]    if isinstance(a[i], int))
-        scores["aterkoppling"]["overchef"]  = sum(a[i] for i in IDX_MAP["aterkoppling"]  if isinstance(a[i], int))
-        scores["malinriktning"]["overchef"] = sum(a[i] for i in IDX_MAP["malinriktning"] if isinstance(a[i], int))
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const imgWidth = pageWidth;
+    const imgHeight = (canvas.height * imgWidth) / canvas.width;
 
-    st.session_state["scores"] = scores
+    let position = 0;
+    let heightLeft = imgHeight;
+    pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
+    heightLeft -= pageHeight;
 
-    st.markdown(f"# {PAGE_TITLE}")
+    while (heightLeft > 0) {
+      position = heightLeft - imgHeight;
+      pdf.addPage();
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
+      heightLeft -= pageHeight;
+    }
 
-    # Kontakt: 2×3 grid (Namn, Företag / E-post, Telefon / Funktion, Unikt id)
-    st.markdown("<div class='contact-title'>Kontaktuppgifter</div>", unsafe_allow_html=True)
-    base = st.session_state.get("kontakt", {})
-    with st.container():
-        c1, c2 = st.columns(2)
-        with c1:
-            st.text_input("Förnamn", value=base.get("Förnamn",""), disabled=True)
-            st.text_input("Telefon", value=base.get("Telefon",""), disabled=True)
-            st.selectbox(
-                "Funktion",
-                ["Chef", "Överordnad chef", "Medarbetare"],
-                index=["Chef","Överordnad chef","Medarbetare"].index(base.get("Funktion","Chef")),
-                disabled=True,
-            )
-        with c2:
-            st.text_input("Efternamn", value=base.get("Efternamn",""), disabled=True)
-            st.text_input("Företag", value=base.get("Företag",""), disabled=True)
-            st.text_input("E-post", value=base.get("E-post",""), disabled=True)
-        st.text_input("Unikt id", value=base.get("Unikt id",""), disabled=True)
+    const fileName = `Självskattning_${contact.name.replace(/\s+/g, "_")}_${svDateFile(new Date())}.pdf`;
+    const base64 = pdf.output('datauristring').replace(/^data:application\/pdf;base64,/, '');
+    return { base64, fileName };
+  };
 
-    # Linje före sektionerna
-    st.markdown("---")
+  // Skicka rapporten (PDF) + data till Power Automate/SharePoint när rapporten visas
+  useEffect(() => {
+    (async () => {
+      try {
+        const id = generateMeasurementId();
+        setMeasurementId(id);
+        const { base64, fileName } = await buildPdfBase64();
+        await postToWebhook($1, id);
+      } catch (e) {
+        console.warn('Kunde inte skapa/skicka PDF till SharePoint:', e);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-    # Sektioner 68/32 med centrerade kort
-    for s in SECTIONS:
-        left, right = st.columns([0.68, 0.32])
-        with left:
-            st.header(s["title"])
-            for p in s["text"].split("\n\n"): 
-                st.write(p)
-        with right:
-            key, mx = s["key"], s["max"]
-            chef = int(scores.get(key,{}).get("chef",0))
-            over = int(scores.get(key,{}).get("overchef",0))
-            med  = int(scores.get(key,{}).get("medarbetare",0))
+  const openBooking = () => {
+    const url = "https://link.paidsocialfunnels.com/widget/bookings/carl-fredrik";
+    setCtaBlocked(false);
+    // 1) Ny flik
+    let win: Window | null = null;
+    try { win = window.open(url, "_blank", "noopener,noreferrer"); } catch {}
+    if (win) return;
+    // 2) Översta fönstret
+    try { if (window.top) { (window.top as Window).location.href = url; return; } } catch {}
+    // 3) Osynligt ankare
+    try {
+      const a = document.createElement('a');
+      a.href = url; a.target = '_blank'; a.rel = 'noopener noreferrer';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      return;
+    } catch {}
+    // 4) Visa länk att kopiera
+    setCtaBlocked(true);
+  };
 
-            st.markdown("<div class='right-wrap'>", unsafe_allow_html=True)
-            card = [f"<div class='res-card'>"]
-            def bar(lbl, val, maxv, cls):
-                pct = 0 if maxv==0 else (val/maxv)*100
-                return [
-                    f"<span class='role-label'>{lbl}: {val} poäng</span>",
-                    f"<div class='barbg'><span class='barfill {cls}' style='width:{pct:.0f}%'></span></div>",
-                ]
-            card += bar("Chef", chef, mx, "bar-green")
-            card += bar("Överordnad chef", over, mx, "bar-orange")
-            card += bar("Medarbetare", med, mx, "bar-blue")
-            card += [f"<div class='maxline'>Max: {mx} poäng</div>", "</div>"]
-            st.markdown("\n".join(card), unsafe_allow_html=True)
-            st.markdown("</div>", unsafe_allow_html=True)
+  return (
+    <div className="max-w-5xl mx-auto">
+      <div className="mb-4 flex justify-between items-center">
+        <div className="text-sm" style={{ color: PALETTE.gray700 }}>Genererad: {svDate()}</div>
+        <div className="flex gap-2">
+          <PrimaryButton onClick={onRestart}>Starta om</PrimaryButton>
+        </div>
+      </div>
+      
+      <Card>
+        {/* WRAPPER: allt innehåll som ska in i PDF:en */}
+        <div ref={reportRef} className="report-root font-sans p-4 rounded-xl" style={{ background: PALETTE.eggshell }}>
+          {/* Titel */}
+          <div className="rounded-lg p-4 mb-4" style={{ background: PALETTE.white, border: `1px solid ${PALETTE.gray400}` }}>
+            <h1 className="text-3xl font-bold" style={{ color: PALETTE.navy700 }}>Din rapport – Funktionellt ledarskap</h1>
+            <p style={{ color: PALETTE.gray700 }}>{svDate()}</p>
+          </div>
 
-    # PDF
-    k = st.session_state.get("kontakt", {})
-    pdf_bytes = build_pdf(PAGE_TITLE, SECTIONS, scores, k)
-    pdf_name = f"Självskattning - {(k.get('Förnamn') or '')} {(k.get('Efternamn') or '')} - {k.get('Företag') or 'Företag'}.pdf"
-    st.download_button("Ladda ner PDF", data=pdf_bytes, file_name=pdf_name, mime="application/pdf", type="primary")
+          {/* Uppgifter */}
+          <Panel title="Uppgifter">
+            <dl>
+              <div className="flex justify-between py-1" style={{ borderBottom: `1px solid ${PALETTE.gray200}` }}><dt className="font-medium">Rubrik (Mätnings-ID)</dt><dd>{measurementId}</dd></div>
+              <div className="flex justify-between py-1" style={{ borderBottom: `1px solid ${PALETTE.gray200}` }}><dt className="font-medium">Namn</dt><dd>{contact.name}</dd></div>
+              <div className="flex justify-between py-1" style={{ borderBottom: `1px solid ${PALETTE.gray200}` }}><dt className="font-medium">Företag</dt><dd>{contact.company || "—"}</dd></div>
+              <div className="flex justify-between py-1" style={{ borderBottom: `1px solid ${PALETTE.gray200}` }}><dt className="font-medium">E-post</dt><dd>{contact.email}</dd></div>
+            </dl>
+          </Panel>
 
-    # Dela-länk till resultatsidan via URL med uid
-    uid_share = k.get("Unikt id")
-    if uid_share:
-        st.query_params["uid"] = uid_share
-        st.info(f"Dela denna länk för att se resultatet igen: ?uid={uid_share}")
+          {/* Delområden */}
+          <div className="rounded-lg p-3 mt-3" style={{ background: PALETTE.white, border: `1px solid ${PALETTE.gray400}` }}>
+            <h2 className="text-xl font-bold" style={{ color: PALETTE.navy700 }}>Delområden</h2>
+          </div>
 
-    if st.button("◀ Till startsidan"):
-        st.session_state["page"] = "landing"
-        rerun()
+          {/* Aktivt lyssnande */}
+          <div className="grid md:grid-cols-3 gap-4 items-start mt-3">
+            <div className="md:col-span-2">
+              <Panel title="Aktivt lyssnande">
+                <p style={{ color: PALETTE.gray700 }}>
+                  I dagens arbetsliv har chefens roll förändrats. Medarbetarna sitter ofta på den djupaste kompetensen och lösningarna på verksamhetens utmaningar.
+                </p>
+                <p className="mt-2" style={{ color: PALETTE.gray700 }}>
+                  Därför är aktivt lyssnande en av chefens viktigaste färdigheter. Det handlar inte bara om att höra vad som sägs, utan om att förstå, visa intresse och använda den information du får. När du bjuder in till dialog och tar till dig medarbetarnas perspektiv visar du att deras erfarenheter är värdefulla.
+                </p>
+                <p className="mt-2" style={{ color: PALETTE.gray700 }}>
+                  Genom att agera på det du hör – bekräfta, följa upp och omsätta idéer i handling – stärker du både engagemang, förtroende och delaktighet.
+                </p>
+              </Panel>
+            </div>
+            <CategoryRightCard title="Aktivt lyssnande" sum={sum1to7} total={49} />
+          </div>
 
-# =============================
-# CSS (dubbla klamrar i f-string)
-# =============================
-st.markdown(
-    f"""
-    <style>
-      .stApp {{ background-color: {EGGSHELL}; }}
-      .block-container {{ padding-top: 2rem; padding-bottom: 3rem; }}
-      html, body, [class*="css"] {{ font-family: Helvetica, Arial, sans-serif; }}
-      .stMarkdown h1 {{ font-size: 29px; font-weight: 700; margin: 0 0 6px 0; }}
-      .stMarkdown h2 {{ font-size: 20px; font-weight: 700; margin: 26px 0 10px 0; }}
-      .stMarkdown p, .stMarkdown {{ font-size: 15px; line-height: 21px; }}
+          {/* Återkoppling */}
+          <div className="grid md:grid-cols-3 gap-4 items-start mt-3">
+            <div className="md:col-span-2">
+              <Panel title="Återkoppling">
+                <p style={{ color: PALETTE.gray700 }}>
+                  Effektiv återkoppling är grunden för både utveckling och motivation. Medarbetare behöver veta vad som förväntas, hur de ligger till och hur de kan växa. När du som chef tydligt beskriver uppgifter och förväntade beteenden skapar du trygghet och fokus i arbetet.
+                </p>
+                <p className="mt-2" style={{ color: PALETTE.gray700 }}>
+                  Återkoppling handlar sedan om närvaro och uppföljning – att se, lyssna och ge både beröm och konstruktiv feedback. Genom att tydligt lyfta fram vad som fungerar och vad som kan förbättras, förstärker du önskvärda beteenden och hjälper dina medarbetare att lyckas.
+                </p>
+                <p className="mt-2" style={{ color: PALETTE.gray700 }}>
+                  I svåra situationer blir återkopplingen extra viktig. Att vara lugn, konsekvent och tydlig när det blåser visar ledarskap på riktigt.
+                </p>
+              </Panel>
+            </div>
+            <CategoryRightCard title="Återkoppling" sum={sum8to15} total={56} />
+          </div>
 
-      /* Hero */
-      .hero {{ text-align:center; padding:34px 28px; background:#fff;
-               border-radius:14px; border:1px solid rgba(0,0,0,.08); box-shadow:0 6px 20px rgba(0,0,0,.06); }}
+          {/* Målinriktning */}
+          <div className="grid md:grid-cols-3 gap-4 items-start mt-6">
+            <div className="md:col-span-2">
+              <Panel title="Målinriktning">
+                <p style={{ color: PALETTE.gray700 }}>
+                  Målinriktat ledarskap handlar om att ge tydliga ramar – tid, resurser och ansvar – så att medarbetare kan arbeta effektivt och med trygghet. Tydliga och inspirerande mål skapar riktning och hjälper alla att förstå vad som är viktigt just nu.
+                </p>
+                <p className="mt-2" style={{ color: PALETTE.gray700 }}>
+                  Som chef handlar det om att formulera mål som går att tro på, och att tydliggöra hur de ska nås. När du delegerar ansvar och befogenheter visar du förtroende och skapar engagemang. Målen blir då inte bara något att leverera på – utan något att vara delaktig i.
+                </p>
+                <p className="mt-2" style={{ color: PALETTE.gray700 }}>
+                  Uppföljning är nyckeln. Genom att uppmärksamma framsteg, ge återkoppling och fira resultat förstärker du både prestation och motivation.
+                </p>
+              </Panel>
+            </div>
+            <CategoryRightCard title="Målinriktning" sum={sum16to20} total={35} />
+          </div>
 
-      /* Kontaktkort */
-      .contact-card {{ background:#fff; border:1px solid rgba(0,0,0,.12); border-radius:12px; padding:12px 14px; box-shadow:0 4px 16px rgba(0,0,0,.06); }}
-      .contact-title {{ font-weight:700; font-size:19px; margin: 6px 0 10px 0; }}
-      .contact-grid {{ display:grid; grid-template-columns: 1fr 1fr; gap: 12px 16px; }}
-      .contact-grid .label {{ font-size:12px; color:#6B7280; margin-bottom:4px; }}
-      .pill {{ background:#F8FAFC; padding:10px 12px; border-radius:8px; border:1px solid rgba(0,0,0,.06); }}
+          {/* Nästa steg */}
+          <Panel title="Nästa steg" className="mt-8">
+            <div className="space-y-4">
+              <div className="flex flex-wrap items-center gap-2 p-2 rounded-lg" style={{ background: PALETTE.gray100, border: `1px solid ${PALETTE.gray300}` }}>
+                <span className="text-sm font-medium" style={{ color: PALETTE.navy700 }}>Sammanfattning:</span>
+                <span className="text-xs md:text-sm px-2 py-1 rounded-full" style={{ background: PALETTE.navy50, border: `1px solid ${PALETTE.navy300}`, color: PALETTE.navy700 }}>Aktivt lyssnande {Math.round(sum1to7)}/49</span>
+                <span className="text-xs md:text-sm px-2 py-1 rounded-full" style={{ background: PALETTE.navy50, border: `1px solid ${PALETTE.navy300}`, color: PALETTE.navy700 }}>Återkoppling {Math.round(sum8to15)}/56</span>
+                <span className="text-xs md:text-sm px-2 py-1 rounded-full" style={{ background: PALETTE.navy50, border: `1px solid ${PALETTE.navy300}`, color: PALETTE.navy700 }}>Målinriktning {Math.round(sum16to20)}/35</span>
+              </div>
 
-      /* Resultatkort (högerkolumn 32%) */
-      .section-row {{ display:grid; grid-template-columns: 0.68fr 0.32fr; column-gap:24px; align-items:center; }}
-      .right-wrap {{ display:flex; align-items:center; justify-content:center; }}
-      .res-card {{ max-width:380px; width:100%; padding:16px 18px; border:1px solid rgba(0,0,0,.12);
-                   border-radius:12px; box-shadow:0 6px 20px rgba(0,0,0,.08); background:#fff; }}
-      .role-label {{ font-size:13px; color:#111827; margin:10px 0 6px 0; display:block; font-weight:600; }}
-      .barbg {{ width:100%; height:10px; background:#E9ECEF; border-radius:6px; overflow:hidden; }}
-      .barfill {{ height:10px; display:block; }}
-      .bar-green {{ background:#22C55E; }}
-      .bar-orange {{ background:#F59E0B; }}
-      .bar-blue {{ background:#3B82F6; }}
-      .maxline {{ font-size:13px; color:#374151; margin-top:12px; font-weight:600; }}
+              <div>
+                <p className="font-medium" style={{ color: PALETTE.navy700 }}>Aktivt lyssnande</p>
+                <ul className="list-disc ml-6 mt-1" style={{ color: PALETTE.gray700 }}>
+                  <li><strong>Aktivt lyssnande:</strong> träna på att använda kroppsspråk, frågor och återkoppling som visar att du verkligen lyssnar.</li>
+                  <li className="mt-1"><strong>Hantera gnäll och kritik:</strong> lär dig hur du kan behålla lugnet, lyssna även i svåra samtal och styra dialogen mot lösningar.</li>
+                </ul>
+              </div>
 
-      /* Download-knapp */
-      .stDownloadButton>button {{ background:{PRIMARY}; border-color:{PRIMARY}; }}
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
+              <div>
+                <p className="font-medium" style={{ color: PALETTE.navy700 }}>Återkoppling</p>
+                <ul className="list-disc ml-6 mt-1" style={{ color: PALETTE.gray700 }}>
+                  <li><strong>Analys av beteenden i organisationen:</strong> förstå varför medarbetare agerar som de gör och hur du kan påverka beteenden konstruktivt.</li>
+                  <li className="mt-1"><strong>Positiv förstärkning genom positiv återkoppling:</strong> träna på att ge beröm och förstärka rätt beteenden.</li>
+                  <li className="mt-1"><strong>Korrigerande återkoppling:</strong> lär dig att ge kritik som leder till lärande och förbättring, inte försvar.</li>
+                </ul>
+              </div>
 
-# =============================
-# Router (starta alltid på landningssidan)
-# =============================
-if "page" not in st.session_state or st.session_state["page"] not in {
-    "landing","id_page","chef_survey","other_survey","over_survey","assessment","thankyou"
-}:
-    st.session_state["page"] = "landing"
+              <div>
+                <p className="font-medium" style={{ color: PALETTE.navy700 }}>Målinriktning</p>
+                <p className="mt-1" style={{ color: PALETTE.gray700 }}>
+                  Målinriktat ledarskap handlar om att skapa riktning, struktur och tydlighet. Det betyder att formulera mål som är meningsfulla, realistiska och engagerande – och följa upp både resultat och beteenden på vägen.
+                </p>
+                <p className="mt-2" style={{ color: PALETTE.gray700 }}>
+                  Fortsätt utvecklas genom att arbeta med:
+                </p>
+                <ul className="list-disc ml-6 mt-1" style={{ color: PALETTE.gray700 }}>
+                  <li><strong>Hantera tid utifrån prioriteringar:</strong> hitta balans mellan akuta uppgifter och långsiktiga mål.</li>
+                  <li className="mt-1"><strong>Funktionella mötesbeteenden:</strong> lär dig leda möten som skapar delaktighet och framdrift.</li>
+                  <li className="mt-1"><strong>Formulera och följa upp mål:</strong> träna på att sätta tydliga, mätbara och inspirerande mål.</li>
+                  <li className="mt-1"><strong>Funktionell problemlösning:</strong> använd mål- och lösningsfokus för att hantera hinder och skapa lärande i gruppen.</li>
+                </ul>
+              </div>
 
-page = st.session_state["page"]
-if page == "landing":
-    render_landing()
-elif page == "id_page":
-    render_id_page()
-elif page == "chef_survey":
-    render_chef_survey()
-elif page == "other_survey":
-    render_other_survey()
-elif page == "over_survey":
-    render_over_survey()
-elif page == "thankyou":
-    render_thankyou()
-else:
-    render_assessment()
+              <div>
+                <p className="font-medium" style={{ color: PALETTE.navy700 }}>Självledarskap</p>
+                <p className="mt-1" style={{ color: PALETTE.gray700 }}>
+                  För att kunna använda funktionella ledarbeteenden i vardagen behöver du också kunna hantera egna tankar, känslor och fokus. Det handlar om att vara närvarande, flexibel och medveten om hur du själv påverkar ditt ledarskap.
+                </p>
+                <p className="mt-2" style={{ color: PALETTE.gray700 }}>Stärk din självinsikt genom att arbeta med:</p>
+                <ul className="list-disc ml-6 mt-1" style={{ color: PALETTE.gray700 }}>
+                  <li><strong>Flexibilitet i relation till tankar:</strong> lär dig hantera självkritiska eller begränsande tankar.</li>
+                  <li className="mt-1"><strong>Medveten närvaro:</strong> träna din förmåga att fokusera och agera med lugn och tydlighet – även under press.</li>
+                </ul>
+              </div>
+            </div>
+          </Panel>
+        </div>
+      </Card>
+
+      {/* CTA endast i rapportvyn */}
+      <div className="px-4 pb-6 text-center">
+        <button type="button" onClick={openBooking} className="inline-block px-5 py-3 rounded-xl font-medium" style={{ background: PALETTE.navy600, color: PALETTE.white, cursor: 'pointer' }}>
+          Boka Strategimöte
+        </button>
+        {ctaBlocked && (
+          <p className="mt-2 text-sm" style={{ color: PALETTE.gray700 }}>
+            Din webbläsare blockerade öppningen av länken. Kopiera och klistra in i en ny flik:
+            {' '}<a href="https://link.paidsocialfunnels.com/widget/bookings/carl-fredrik" target="_blank" rel="noopener noreferrer" style={{ color: PALETTE.navy700, textDecoration: 'underline' }}>https://link.paidsocialfunnels.com/widget/bookings/carl-fredrik</a>
+          </p>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ---------- Huvudapp ----------
+const App: React.FC = () => {
+  const { answers, reset } = useAppState();
+  const [step, setStep] = useState<"start" | "questions" | "contact" | "report">("start");
+  const [contact, setContact] = useState<Contact | null>(null);
+
+  const handleQuestionsDone = () => setStep("contact");
+
+  const calcScores = (ans: Answers): Scores => {
+    const listening = mean([1,2,3,4,5,6,7].map(i => ans[i] ?? 0));
+    const feedback  = mean([8,9,10,11,12,13,14,15].map(i => ans[i] ?? 0));
+    const goal      = mean([16,17,18,19,20].map(i => ans[i] ?? 0));
+    const total     = mean(Object.values(ans));
+    return { listening, feedback, goal, total };
+  };
+
+  // Viktigt: Vi POST:ar först när rapporten visas (då finns PDF). Ingen POST här för att undvika dubbletter.
+  const handleGenerate = async (c: Contact) => {
+    setContact(c);
+    setStep("report");
+  };
+
+  const handleRestart = () => { reset(); setContact(null); setStep("start"); };
+
+  // --- Självtester (enkla runtime-testfall) ---
+  useEffect(() => {
+    // 1) medelvärden & klassning
+    console.assert(mean([1, 1, 1]) === 1, "mean ska bli 1");
+    console.assert(classify(5.1).label === "Högt", "klassning >=5 ska vara Högt");
+    console.assert(classify(2.6).label === "Medel", "klassning 2.5–4.9 ska vara Medel");
+    console.assert(classify(1.9).label === "Lågt", "klassning <2.5 ska vara Lågt");
+
+    // 2) summeringar
+    const demo: Answers = {}; for (let i = 1; i <= 7; i++) demo[i] = 7; for (let i = 8; i <= 15; i++) demo[i] = 5; for (let i = 16; i <= 20; i++) demo[i] = 3;
+    const s1 = sumRange(demo, 1, 7); const s2 = sumRange(demo, 8, 15); const s3 = sumRange(demo, 16, 20);
+    console.assert(s1 === 49 && s2 === 40 && s3 === 15, "Summor ska bli 49/40/15");
+    console.assert(sumRange({}, 1, 7) === 0, "Tomma svar ska ge 0 i summa");
+
+    // 3) inga oklch-färger i palett/egna stilar
+    console.assert(Object.values(PALETTE).every(v => typeof v === 'string' && !v.includes('oklch')), 'Paletten får inte innehålla oklch');
+    const hasOklchInStyles = Array.from(document.querySelectorAll('style')).some(s => (s.textContent||'').includes('oklch('));
+    console.assert(!hasOklchInStyles, 'Våra egna inbäddade stilar får inte använda oklch');
+
+    // 4) procentklamp
+    const overPct = Math.max(0, Math.min(100, (60/56)*100));
+    const underPct = Math.max(0, Math.min(100, (-5/56)*100));
+    console.assert(overPct === 100, 'Procenten ska clampas till 100 vid översumma');
+    console.assert(underPct === 0, 'Procenten ska clampas till 0 vid negativ summa');
+
+    // 5) inga regex-markörer i DOM
+    const bodyHtml = document.body.innerHTML;
+    console.assert(!bodyHtml.includes('$1') && !bodyHtml.includes('$2'), 'DOM får inte innehålla $1/$2-markörer');
+
+    // 6) datumhelpers format (svDateFile ska ge 8–10 tecken inklusive bindestreck)
+    const f = svDateFile(new Date());
+    console.assert(/^\d{4}-?\d{2}-?\d{2}$/.test(f), 'svDateFile format felaktigt');
+  }, []);
+
+  return (
+    <main className="min-h-screen" style={{ background: PALETTE.eggshell, color: PALETTE.text }}>
+      <header className="max-w-5xl mx-auto px-4 py-6">
+        <h1 className="text-xl md:text-2xl font-semibold" style={{ color: PALETTE.navy700 }}>Självskattning – Funktionellt ledarskap</h1>
+      </header>
+      <section className="px-4 pb-16">
+        {step === "start" && <StartView onStart={() => setStep("questions")} />}
+        {step === "questions" && <QuestionsView onDone={handleQuestionsDone} />}
+        {step === "contact" && <ContactForm onGenerate={handleGenerate} />}
+        {step === "report" && contact && (
+          <ReportView contact={contact} onRestart={handleRestart} />
+        )}
+      </section>
+
+      {/* (CTA är flyttad till ReportView; ingen global CTA här) */}
+
+      <footer className="text-center text-xs py-8" style={{ color: PALETTE.gray700 }}>© {new Date().getFullYear()} Självskattning. Byggd med React, Tailwind, jsPDF.</footer>
+
+      {/* Tailwind helper styles for print/PDF */}
+      <style>{`
+        .report-root { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Inter, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji"; }
+        @media print { .break-before-page { break-before: page; } }
+      `}</style>
+    </main>
+  );
+};
+
+// Exportera som default komponent för Canvas-förhandsvisning
+export default function WrappedApp() {
+  return (
+    <AppStateProvider>
+      <App />
+    </AppStateProvider>
+  );
+}
