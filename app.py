@@ -168,7 +168,7 @@ const useAppState = () => {
 };
 
 // ---------- Frågorna ----------
-1–7 Aktivt lyssnande, 8–15 Återkoppling, 16–20 Målinriktning
+## 1–7 Aktivt lyssnande, 8–15 Återkoppling, 16–20 Målinriktning
 const QUESTIONS: { id: number; text: string }[] = [
   { id: 1, text: "Jag bjuder aktivt in medarbetare till dialog och idéer." },
   { id: 2, text: "Jag ställer öppna frågor för att förstå olika perspektiv." },
